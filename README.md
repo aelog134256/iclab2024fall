@@ -6,5 +6,5 @@
 **Email:** aelog134256@gmail.com
 
 **Name:** Allen Kuan
-**Github:** [Github Profile]([https://github.com/aelog134256](https://github.com/c20kyo1827/))
+**Github:** [Github Profile](https://github.com/c20kyo1827/)
 **Email:** c20kyo1827@gmail.com
