@@ -17,6 +17,25 @@
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //############################################################################
 
+/*
+    @debug method : dump file
+        The file with postfix "_float" means that the file will show the value with float(real) format
+        The file with postfix "_hex" means that the file will show the value with hexadecimal format
+        file name :
+            input_float.txt
+            input_hex.txt
+            output_float.txt
+            output_hex.txt
+    @description :
+        Use IP to calculate the golden pattern
+    @issue :
+        1. Lose precision
+        2. NaN / Inf
+    @todo :
+        1. Improve the parameter representation
+        2. Consider use the real/float number and compare the result with the version of IP
+*/
+
 `define CYCLE_TIME      50.0
 
 module PATTERN(
@@ -921,8 +940,11 @@ begin
             $finish;
         end
 
-        // // Directly calculateion method
-        // // @issue : $random only return 32bits value
+        // /*
+        // Directly calculateion method
+        //     @issue : $random only return 32bits value which means that 
+        //         we can't random the exponent value in float formula and change back to binary
+        // */
         // _getRandInput = 0;
         // _expSegement = 1.0 / 2**(inst_exp_width-1);
         // _fracSegement = 1.0 / 2**(inst_sig_width);
@@ -937,14 +959,16 @@ begin
         // $display("%f", _sumOfSegementProcess);
         // _getRandInput = _realTofloatBits(_sumOfSegementProcess);
 
+        // /*
         // Intuitive method
-        // @issue : not even distribution
-        _getRandInput = 0;
-        _getRandInput[inst_sig_width+:inst_exp_width] = {$random(SEED)} % (_rangeFloatBits[inst_sig_width+:inst_exp_width] + 1 - (PRECISION_OF_RANDOM_EXPONENT+(2**(inst_exp_width-1)-1))) + (PRECISION_OF_RANDOM_EXPONENT+(2**(inst_exp_width-1)-1));
-        _getRandInput[(inst_sig_width-1):0] = 
-            (_getRandInput[inst_sig_width+:inst_exp_width] !== _rangeFloatBits[inst_sig_width+:inst_exp_width]) ? {$random(SEED)} % (2**inst_sig_width)
-            : _rangeFloatBits[(inst_sig_width-1):0] !== 0 ? {$random(SEED)} % (_rangeFloatBits[(inst_sig_width-1):0])
-            : 0;
+        //     @issue : not even distribution -> workaround : use a parameter to control precision by user
+        // */
+        // _getRandInput = 0;
+        // _getRandInput[inst_sig_width+:inst_exp_width] = {$random(SEED)} % (_rangeFloatBits[inst_sig_width+:inst_exp_width] + 1 - (PRECISION_OF_RANDOM_EXPONENT+(2**(inst_exp_width-1)-1))) + (PRECISION_OF_RANDOM_EXPONENT+(2**(inst_exp_width-1)-1));
+        // _getRandInput[(inst_sig_width-1):0] = 
+        //     (_getRandInput[inst_sig_width+:inst_exp_width] !== _rangeFloatBits[inst_sig_width+:inst_exp_width]) ? {$random(SEED)} % (2**inst_sig_width)
+        //     : _rangeFloatBits[(inst_sig_width-1):0] !== 0 ? {$random(SEED)} % (_rangeFloatBits[(inst_sig_width-1):0])
+        //     : 0;
 
         // Add increment on minimal value
         _randOut = _floatBitsToReal(_getRandInput);
@@ -1008,6 +1032,8 @@ begin
 
 end endfunction
 
+// // Manually calculate the real
+// // @deprecated
 // function real _floatBitsToReal;
 //     input reg[inst_sig_width+inst_exp_width:0] _in;
 //     integer _exp;
@@ -1028,7 +1054,6 @@ end endfunction
 //     // Float
 //     _float = 0;
 //     _float = _in[inst_sig_width+inst_exp_width] ? -_frac * (2.0**_exp) : _frac * (2.0**_exp);
-
 //     _floatBitsToReal = (_in === 'dx) ? 0.0/0.0 : _float;
 // end
 // endfunction

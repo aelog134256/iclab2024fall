@@ -11,6 +11,21 @@
 // 
 /**************************************************************************/
 
+/*
+    @debug method : display
+        show the tetris board on the screen
+            1. fall process
+            2. calculate score and deletet row
+            3. final
+    @issue :
+        1. Haven't test the random mode -> can't generate some special testcase to debug
+        2. The NEW_SIGN(@) is useless. We forget to record the board of each operation.
+            Thus, the NEW_SIGN is strange in some scenario
+    @todo :
+        1. Improve the random mode (Introduce other method from other high level language)
+        2. Create board for each operation and show every boards when the pattern is wrong
+*/
+
 `ifdef RTL
     `define CYCLE_TIME 40.0
 `endif
