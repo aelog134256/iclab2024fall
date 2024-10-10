@@ -67,6 +67,7 @@ integer   SEED = 54871;
 parameter DEBUG = 1;
 parameter CYCLE = `CYCLE_TIME;
 parameter DELAY = 5000;
+integer   OUTBIT = 20;
 integer   OUTNUM = -1;
 
 // PATTERN CONTROL
@@ -127,6 +128,10 @@ integer _actionListSize;
 // Intermediate output
 reg[19:0] _intermediate[MAX_SIZE_OF_ACTION-1:0][MAX_SIZE_OF_IMAGE-1:0][MAX_SIZE_OF_IMAGE-1:0];
 integer _intermediateSize[MAX_SIZE_OF_ACTION-1:0];
+
+// Design output
+reg[19:0] _your[MAX_SIZE_OF_IMAGE-1:0][MAX_SIZE_OF_IMAGE-1:0];
+integer _outputSize;
 
 //
 // Clear
@@ -407,7 +412,7 @@ begin
                         + _padding[_row+_innerRow][_col+_innerCol] * _template[_innerRow][_innerCol];
                 end
             end
-            _intermediate[_actIdx][_row][_col] = 0;
+            _intermediate[_actIdx][_row][_col] = _sum;
         end
     end
 
@@ -469,7 +474,6 @@ begin
     $fwrite(file_out, "[PAT NO. %4d]\n\n", pat);
     $fwrite(file_out, "[set # %1d]\n\n", set);
 
-    $fwrite(file_out, "\n");
     $fwrite(file_out, "[=======]\n");
     $fwrite(file_out, "[ Image ]\n");
     $fwrite(file_out, "[=======]\n\n");
@@ -711,6 +715,9 @@ begin
     for(_actIdx=0 ; _actIdx<_actionListSize ; _actIdx=_actIdx+1)begin
         run_action(_actIdx, _actionList[_actIdx]);
     end
+    _outputSize = _intermediateSize[_actionListSize-1];
+    OUTNUM = OUTBIT * _intermediateSize[_actionListSize-1] * _intermediateSize[_actionListSize-1];
+
     if(DEBUG) begin
         dump_input;
         dump_output;
@@ -735,7 +742,47 @@ task wait_task; begin
     end
 end endtask
 
-task check_task; begin
+task check_task;
+    integer _row;
+    integer _col;
+begin
+    out_lat = 0;
+    while(out_valid===1) begin
+        if(out_lat==OUTNUM) begin
+            $display("[ERROR] [OUTPUT] Out cycles is more than %3d at %-12d ps", OUTNUM, $time*1000);
+            repeat(5) @(negedge clk);
+            $finish;
+        end
+        
+        _your[out_lat/OUTBIT/_outputSize][(out_lat/OUTBIT)%_outputSize][OUTBIT-out_lat-1] = out_value;
+
+        out_lat = out_lat + 1;
+        @(negedge clk);
+    end
+    if(out_lat<OUTNUM) begin
+        $display("[ERROR] [OUTPUT] Out cycles is less than %3d at %-12d ps", OUTNUM, $time*1000);
+        repeat(5) @(negedge clk);
+        $finish;
+    end
+
+    //
+    // Check
+    //
+    for(_row=0 ; _row<_outputSize ; _row=_row+1) begin
+        for(_col=0 ; _col<_outputSize ; _col=_col+1) begin
+            if(_your[_row][_col] !== _intermediate[_actionListSize-1][_row][_col]) begin
+                $display("[ERROR] [OUTPUT] Output is not correct...\n");
+                $display("[ERROR] [OUTPUT] Dump debugging file...\n");
+                $display("[ERROR] [OUTPUT]      input.tx contains image and template]\n");
+                $display("[ERROR] [OUTPUT]      output.tx contains intermediate results and action list]\n");
+                $display("[ERROR] [OUTPUT] Your pixel is not correct at (%2d, %2d)", _row, col);
+                repeat(5) @(negedge clk);
+                $finish;
+            end
+        end
+    end
+
+    tot_lat = tot_lat + exe_lat;
 end endtask
 
 task pass_task; begin
