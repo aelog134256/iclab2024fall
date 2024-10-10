@@ -775,7 +775,7 @@ begin
                 $display("[ERROR] [OUTPUT] Dump debugging file...\n");
                 $display("[ERROR] [OUTPUT]      input.tx contains image and template]\n");
                 $display("[ERROR] [OUTPUT]      output.tx contains intermediate results and action list]\n");
-                $display("[ERROR] [OUTPUT] Your pixel is not correct at (%2d, %2d)", _row, col);
+                $display("[ERROR] [OUTPUT] Your pixel is not correct at (%2d, %2d)", _row, _col);
                 repeat(5) @(negedge clk);
                 $finish;
             end
