@@ -103,13 +103,19 @@ reg[10*8:1] bkg_white_prefix  = "\033[47;1m";
 //======================================
 //      DATA MODEL
 //======================================
+// Image & Template
 parameter NUM_OF_CHANNEL = 3; // red, green, blue
 parameter MAX_SIZE_OF_IMAGE = 16;
 parameter SIZE_OF_TEMPLATE = 3;
+// Action
 parameter MIN_SIZE_OF_ACTION = 2;
 parameter MAX_SIZE_OF_ACTION = 8;
 parameter NUM_OF_FIRST_ACTION_TYPE = 3;
 parameter LAST_ACTION_TYPE = 7;
+// Operation
+parameter SIZE_OF_MAXPOOL_WINDOW = 2;
+parameter SIZE_OF_FILTER_WINDOW = 3;
+parameter SIZE_OF_PAD_WINDOW = 2;
 // Input
 reg[7:0] _image[NUM_OF_CHANNEL-1:0][MAX_SIZE_OF_IMAGE-1:0][MAX_SIZE_OF_IMAGE-1:0];
 reg[7:0] _template[SIZE_OF_TEMPLATE-1:0][SIZE_OF_TEMPLATE-1:0];
@@ -118,41 +124,43 @@ integer _imageSize;
 integer _actionSize;
 
 // Intermediate output
-reg[7:0] _intermediate[MAX_SIZE_OF_ACTION-1:0][MAX_SIZE_OF_IMAGE-1:0][MAX_SIZE_OF_IMAGE-1:0];
+reg[19:0] _intermediate[MAX_SIZE_OF_ACTION-1:0][MAX_SIZE_OF_IMAGE-1:0][MAX_SIZE_OF_IMAGE-1:0];
 integer _intermediateSize[MAX_SIZE_OF_ACTION-1:0];
 
 //
 // Clear
 //
 task clear_input;
-    integer ch_idx;
-    integer row_idx;
-    integer col_idx;
+    integer _channel;
+    integer _row;
+    integer _col;
 begin
-    for(ch_idx=0 ; ch_idx<NUM_OF_CHANNEL ; ch_idx=ch_idx+1) begin
-        for(row_idx=0 ; row_idx<MAX_SIZE_OF_IMAGE ; row_idx=row_idx+1) begin
-            for(col_idx=0 ; col_idx<MAX_SIZE_OF_IMAGE ; col_idx=col_idx+1) begin
-                _image[ch_idx][row_idx][col_idx] = 0;
+    for(_channel=0 ; _channel<NUM_OF_CHANNEL ; _channel=_channel+1) begin
+        for(_row=0 ; _row<MAX_SIZE_OF_IMAGE ; _row=_row+1) begin
+            for(_col=0 ; _col<MAX_SIZE_OF_IMAGE ; _col=_col+1) begin
+                _image[_channel][_row][_col] = 0;
             end
         end
     end
-    for(row_idx=0 ; row_idx<SIZE_OF_TEMPLATE ; row_idx=row_idx+1) begin
-        for(col_idx=0 ; col_idx<SIZE_OF_TEMPLATE ; col_idx=col_idx+1) begin
-            _template[row_idx][col_idx] = 0;
+    for(_row=0 ; _row<SIZE_OF_TEMPLATE ; _row=_row+1) begin
+        for(_col=0 ; _col<SIZE_OF_TEMPLATE ; _col=_col+1) begin
+            _template[_row][_col] = 0;
         end
     end
 end endtask
 
 task clear_intermediate;
     integer num_idx;
-    integer row_idx;
-    integer col_idx;
+    integer _row;
+    integer _col;
 begin
     for(num_idx=0 ; num_idx<MAX_SIZE_OF_ACTION ; num_idx=num_idx+1) begin
+        // size
         _intermediateSize[num_idx] = 0;
-        for(row_idx=0 ; row_idx<NUM_OF_CHANNEL ; row_idx=row_idx+1) begin
-            for(col_idx=0 ; col_idx<NUM_OF_CHANNEL ; col_idx=col_idx+1) begin
-                _intermediate[num_idx][row_idx][col_idx] = 0;
+        // intermediate figure
+        for(_row=0 ; _row<NUM_OF_CHANNEL ; _row=_row+1) begin
+            for(_col=0 ; _col<NUM_OF_CHANNEL ; _col=_col+1) begin
+                _intermediate[num_idx][_row][_col] = 0;
             end
         end
     end
@@ -184,33 +192,43 @@ end endtask
 
 task gray_transf_max_intermediate;
     input integer _actIdx;
-    integer row_idx;
-    integer col_idx;
+    integer _row;
+    integer _col;
+    integer _channel;
+    integer _max;
 begin
-    for(row_idx=0 ; row_idx<MAX_SIZE_OF_IMAGE ; row_idx=row_idx+1) begin
-        for(col_idx=0 ; col_idx<MAX_SIZE_OF_IMAGE ; col_idx=col_idx+1) begin
-            _intermediate[_actIdx][row_idx][col_idx] =
-                _max(
-                    _image[0][row_idx][col_idx],
-                    _image[1][row_idx][col_idx],
-                    _image[2][row_idx][col_idx]
-                );
+    // size
+    _intermediateSize[_actIdx] = _imageSize;
+    // intermediate figure
+    for(_row=0 ; _row<_intermediateSize[_actIdx] ; _row=_row+1) begin
+        for(_col=0 ; _col<_intermediateSize[_actIdx] ; _col=_col+1) begin
+            _max = 0;
+            for(_channel=0 ; _channel<NUM_OF_CHANNEL ; _channel=_channel+1) begin
+                _max =
+                    (_max>_image[_channel][_row][_col])
+                    ? _max
+                    : _image[_channel][_row][_col];
+            end
+            _intermediate[_actIdx][_row][_col] =_max;
         end
     end
 end endtask
 
 task gray_transf_avg_intermediate;
     input integer _actIdx;
-    integer row_idx;
-    integer col_idx;
+    integer _row;
+    integer _col;
 begin
-    for(row_idx=0 ; row_idx<MAX_SIZE_OF_IMAGE ; row_idx=row_idx+1) begin
-        for(col_idx=0 ; col_idx<MAX_SIZE_OF_IMAGE ; col_idx=col_idx+1) begin
-            _intermediate[_actIdx][row_idx][col_idx] =
+    // size
+    _intermediateSize[_actIdx] = _imageSize;
+    // intermediate figure
+    for(_row=0 ; _row<_intermediateSize[_actIdx] ; _row=_row+1) begin
+        for(_col=0 ; _col<_intermediateSize[_actIdx] ; _col=_col+1) begin
+            _intermediate[_actIdx][_row][_col] =
                 $floor(
-                    (_image[0][row_idx][col_idx]+
-                    _image[1][row_idx][col_idx]+
-                    _image[2][row_idx][col_idx])/3
+                    (_image[0][_row][_col]+
+                    _image[1][_row][_col]+
+                    _image[2][_row][_col])/3
                 );
         end
     end
@@ -218,74 +236,197 @@ end endtask
 
 task gray_transf_wght_intermediate;
     input integer _actIdx;
-    integer row_idx;
-    integer col_idx;
+    integer _row;
+    integer _col;
 begin
-    for(row_idx=0 ; row_idx<MAX_SIZE_OF_IMAGE ; row_idx=row_idx+1) begin
-        for(col_idx=0 ; col_idx<MAX_SIZE_OF_IMAGE ; col_idx=col_idx+1) begin
-            _intermediate[_actIdx][row_idx][col_idx] =
-                _image[0][row_idx][col_idx]/4+
-                _image[1][row_idx][col_idx]/2+
-                _image[2][row_idx][col_idx]/4;
+    // size
+    _intermediateSize[_actIdx] = _imageSize;
+    // intermediate figure
+    for(_row=0 ; _row<_intermediateSize[_actIdx] ; _row=_row+1) begin
+        for(_col=0 ; _col<_intermediateSize[_actIdx] ; _col=_col+1) begin
+            _intermediate[_actIdx][_row][_col] =
+                _image[0][_row][_col]/4+
+                _image[1][_row][_col]/2+
+                _image[2][_row][_col]/4;
         end
     end
 end endtask
 
 task max_pool_intermediate;
     input integer _actIdx;
-    integer row_idx;
-    integer col_idx;
+    integer _row;
+    integer _col;
+    integer _pool_row;
+    integer _pool_col;
+    integer _tmp;
 begin
+    if(_intermediateSize[_actIdx-1]===4) begin
+        // size
+        _intermediateSize[_actIdx] = _intermediateSize[_actIdx-1];
+        // intermediate figure
+        for(_row=0 ; _row<_intermediateSize[_actIdx] ; _row=_row+SIZE_OF_MAXPOOL_WINDOW) begin
+            for(_col=0 ; _col<_intermediateSize[_actIdx] ; _col=_col+SIZE_OF_MAXPOOL_WINDOW) begin
+                _intermediate[_actIdx][_row][_col] = 
+                    _intermediate[_actIdx-1][_row][_col];
+            end
+        end
+    end
+    else begin
+        // size
+        _intermediateSize[_actIdx] = _intermediateSize[_actIdx-1]/SIZE_OF_MAXPOOL_WINDOW;
+        // intermediate figure
+        for(_row=0 ; _row<_intermediateSize[_actIdx] ; _row=_row+SIZE_OF_MAXPOOL_WINDOW) begin
+            for(_col=0 ; _col<_intermediateSize[_actIdx] ; _col=_col+SIZE_OF_MAXPOOL_WINDOW) begin
+                _tmp = _intermediate[_actIdx-1][_row][_col];
+                for(_pool_row=0 ; _pool_row<SIZE_OF_MAXPOOL_WINDOW ; _pool_row=_pool_row+1) begin
+                    for(_pool_col=0 ; _pool_col<SIZE_OF_MAXPOOL_WINDOW ; _pool_col=_pool_col+1) begin
+                        _tmp =
+                            (_tmp>_intermediate[_actIdx-1][_row+_pool_row][_col+_pool_col])
+                            ? _tmp
+                            : _intermediate[_actIdx-1][_row+_pool_row][_col+_pool_col];
+                    end
+                end
+                _intermediate[_actIdx][_row/SIZE_OF_MAXPOOL_WINDOW][_col/SIZE_OF_MAXPOOL_WINDOW] = _tmp;
+            end
+        end
+    end
 end endtask
 
 task negative_intermediate;
     input integer _actIdx;
-    integer row_idx;
-    integer col_idx;
+    integer _row;
+    integer _col;
 begin
+    // size
+    _intermediateSize[_actIdx] = _intermediateSize[_actIdx-1];
+    // intermediate figure
+    for(_row=0 ; _row<_intermediateSize[_actIdx] ; _row=_row+1) begin
+        for(_col=0 ; _col<_intermediateSize[_actIdx] ; _col=_col+1) begin
+            _intermediate[_actIdx][_row][_col] =
+                255 - _intermediate[_actIdx-1][_row][_col];
+        end
+    end
 end endtask
 
 task horiz_flip_intermediate;
     input integer _actIdx;
-    integer row_idx;
-    integer col_idx;
+    integer _row;
+    integer _col;
 begin
+    // size
+    _intermediateSize[_actIdx] = _intermediateSize[_actIdx-1];
+    // intermediate figure
+    for(_col=0 ; _col<_intermediateSize[_actIdx]/2 ; _col=_col+1) begin
+        for(_row=0 ; _row<_intermediateSize[_actIdx] ; _row=_row+1) begin
+            _intermediate[_actIdx][_row][_col] = _intermediate[_actIdx-1][_row][_intermediateSize[_actIdx]/2-_col-1];
+        end
+    end
 end endtask
 
 task img_filter_intermediate;
     input integer _actIdx;
-    integer row_idx;
-    integer col_idx;
+    integer _row;
+    integer _col;
+
+    integer _sizeOfPad;
+    reg[7:0] _padding[MAX_SIZE_OF_IMAGE+SIZE_OF_PAD_WINDOW-1:0][MAX_SIZE_OF_IMAGE+SIZE_OF_PAD_WINDOW-1:0];
 begin
+    // size
+    _intermediateSize[_actIdx] = _intermediateSize[_actIdx-1];
+
+    // padding - replication
+    _sizeOfPad = _intermediateSize[_actIdx]+SIZE_OF_PAD_WINDOW;
+    for(_col=0 ; _col<MAX_SIZE_OF_IMAGE+SIZE_OF_PAD_WINDOW ; _col=_col+1) begin
+        for(_row=0 ; _row<MAX_SIZE_OF_IMAGE+SIZE_OF_PAD_WINDOW ; _row=_row+1) begin
+            _padding[_row][_col] = 0;
+        end
+    end
+    for(_row=0 ; _row<_intermediateSize[_actIdx-1] ; _row=_row+1) begin
+        for(_col=0 ; _col<_intermediateSize[_actIdx-1] ; _col=_col+1) begin
+            _padding[_row+1][_col+1] = _intermediate[_actIdx-1][_row][_col];
+        end
+    end
+    for(_row=1 ; _row<_sizeOfPad-1 ; _row=_row+1) begin
+        _padding[_row][0] = _intermediate[_actIdx-1][_row-1][0];
+        _padding[_row][_sizeOfPad-1] = _intermediate[_actIdx-1][_row-1][_intermediateSize[_actIdx-1]-1];
+    end
+    for(_col=1 ; _col<_sizeOfPad-1 ; _col=_col+1) begin
+        _padding[0][_col] = _intermediate[_actIdx-1][0][_col-1];
+        _padding[_sizeOfPad-1][_col] = _intermediate[_actIdx-1][_intermediateSize[_actIdx-1]-1][_col-1];
+    end
+
+    _padding[0][0] = _intermediate[_actIdx-1][0][0];
+    _padding[0][_sizeOfPad-1] = _intermediate[_actIdx-1][0][_intermediateSize[_actIdx-1]-1];
+    _padding[_sizeOfPad-1][0] = _intermediate[_actIdx-1][_intermediateSize[_actIdx-1]-1][0];
+    _padding[_sizeOfPad-1][_sizeOfPad-1] = _intermediate[_actIdx-1][_intermediateSize[_actIdx-1]-1][_intermediateSize[_actIdx-1]-1];
+
+    // intermediate figure
+
 end endtask
 
 task cross_corr_intermediate;
     input integer _actIdx;
-    integer row_idx;
-    integer col_idx;
+    integer _row;
+    integer _col;
+    integer _innerRow;
+    integer _innerCol;
+
+    integer _sizeOfPad;
+    reg[7:0] _padding[MAX_SIZE_OF_IMAGE+SIZE_OF_PAD_WINDOW-1:0][MAX_SIZE_OF_IMAGE+SIZE_OF_PAD_WINDOW-1:0];
+    reg[19:0] _sum;
 begin
+    // size
+    _intermediateSize[_actIdx] = _intermediateSize[_actIdx-1];
+
+    // padding - zero padding
+    _sizeOfPad = _intermediateSize[_actIdx]+SIZE_OF_PAD_WINDOW;
+    for(_col=0 ; _col<MAX_SIZE_OF_IMAGE+SIZE_OF_PAD_WINDOW ; _col=_col+1) begin
+        for(_row=0 ; _row<MAX_SIZE_OF_IMAGE+SIZE_OF_PAD_WINDOW ; _row=_row+1) begin
+            _padding[_row][_col] = 0;
+        end
+    end
+    for(_row=0 ; _row<_intermediateSize[_actIdx-1] ; _row=_row+1) begin
+        for(_col=0 ; _col<_intermediateSize[_actIdx-1] ; _col=_col+1) begin
+            _padding[_row+1][_col+1] = _intermediate[_actIdx-1][_row][_col];
+        end
+    end
+    
+    // intermediate figure
+    for(_row=0 ; _row<_intermediateSize[_actIdx] ; _row=_row+1) begin
+        for(_col=0 ; _col<_intermediateSize[_actIdx] ; _col=_col+1) begin
+            _sum = 0;
+            for(_innerRow=0 ; _innerRow<SIZE_OF_TEMPLATE ; _innerRow=_innerRow+1) begin
+                for(_innerCol=0 ; _innerCol<SIZE_OF_TEMPLATE ; _innerCol=_innerCol+1) begin
+                    _sum = _sum 
+                        + _padding[_row+_innerRow][_col+_innerCol] * _template[_innerRow][_innerCol];
+                end
+            end
+            _intermediate[_actIdx][_row][_col] = 0;
+        end
+    end
+
 end endtask
 
 //
 // Generate input
 //
 task randomize_figure;
-    integer ch_idx;
-    integer row_idx;
-    integer col_idx;
+    integer _channel;
+    integer _row;
+    integer _col;
 begin
-    for(ch_idx=0 ; ch_idx<NUM_OF_CHANNEL ; ch_idx=ch_idx+1) begin
-        for(row_idx=0 ; row_idx<MAX_SIZE_OF_IMAGE ; row_idx=row_idx+1) begin
-            for(col_idx=0 ; col_idx<MAX_SIZE_OF_IMAGE ; col_idx=col_idx+1) begin
-                _image[ch_idx][row_idx][col_idx] = (pat<SIMPLE_PATNUM)
+    for(_channel=0 ; _channel<NUM_OF_CHANNEL ; _channel=_channel+1) begin
+        for(_row=0 ; _row<MAX_SIZE_OF_IMAGE ; _row=_row+1) begin
+            for(_col=0 ; _col<MAX_SIZE_OF_IMAGE ; _col=_col+1) begin
+                _image[_channel][_row][_col] = (pat<SIMPLE_PATNUM)
                     ? {$random(SEED)} % 5
                     : {$random(SEED)} % 256;
             end
         end
     end
-    for(row_idx=0 ; row_idx<SIZE_OF_TEMPLATE ; row_idx=row_idx+1) begin
-        for(col_idx=0 ; col_idx<SIZE_OF_TEMPLATE ; col_idx=col_idx+1) begin
-            _template[row_idx][col_idx] = (pat<SIMPLE_PATNUM)
+    for(_row=0 ; _row<SIZE_OF_TEMPLATE ; _row=_row+1) begin
+        for(_col=0 ; _col<SIZE_OF_TEMPLATE ; _col=_col+1) begin
+            _template[_row][_col] = (pat<SIMPLE_PATNUM)
                 ? {$random(SEED)} % 5
                 : {$random(SEED)} % 256;
         end
@@ -302,20 +443,6 @@ begin
         _actionList[_i] = {$random(SEED)} % (LAST_ACTION_TYPE - NUM_OF_FIRST_ACTION_TYPE) + NUM_OF_FIRST_ACTION_TYPE;
     end
 end endtask
-
-//
-// Utility
-//
-function[7:0] _max;
-    input reg[7:0] _in1;
-    input reg[7:0] _in2;
-    input reg[7:0] _in3;
-
-    reg[7:0] _tmp;
-begin
-    _tmp = (_in1>_in2) ? (_in1) : (_in2);
-    _max = (_tmp>_in3) ? (_tmp) : (_in3);
-end endfunction
 
 //
 // Dump
