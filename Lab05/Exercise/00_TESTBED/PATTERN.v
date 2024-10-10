@@ -62,7 +62,7 @@ input out_value;
 integer   TOTAL_PATNUM = 10;
 integer   SIMPLE_PATNUM = 10;
 integer   SETNUM = 8;
-integer   SEED = 5487;
+integer   SEED = 54871;
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 parameter DEBUG = 1;
 parameter CYCLE = `CYCLE_TIME;
@@ -120,8 +120,9 @@ parameter SIZE_OF_PAD_WINDOW = 2;
 reg[7:0] _image[NUM_OF_CHANNEL-1:0][MAX_SIZE_OF_IMAGE-1:0][MAX_SIZE_OF_IMAGE-1:0];
 reg[7:0] _template[SIZE_OF_TEMPLATE-1:0][SIZE_OF_TEMPLATE-1:0];
 reg[2:0] _actionList[MAX_SIZE_OF_ACTION-1:0];
+integer _imageSizeBit;
 integer _imageSize;
-integer _actionSize;
+integer _actionListSize;
 
 // Intermediate output
 reg[19:0] _intermediate[MAX_SIZE_OF_ACTION-1:0][MAX_SIZE_OF_IMAGE-1:0][MAX_SIZE_OF_IMAGE-1:0];
@@ -134,6 +135,7 @@ task clear_input;
     integer _channel;
     integer _row;
     integer _col;
+    integer _i;
 begin
     for(_channel=0 ; _channel<NUM_OF_CHANNEL ; _channel=_channel+1) begin
         for(_row=0 ; _row<MAX_SIZE_OF_IMAGE ; _row=_row+1) begin
@@ -146,6 +148,10 @@ begin
         for(_col=0 ; _col<SIZE_OF_TEMPLATE ; _col=_col+1) begin
             _template[_row][_col] = 0;
         end
+    end
+    _actionListSize = 0;
+    for(_i=0 ; _i<MAX_SIZE_OF_ACTION ; _i=_i+1)begin
+        _actionList[_i] = 0;
     end
 end endtask
 
@@ -415,11 +421,13 @@ task randomize_figure;
     integer _row;
     integer _col;
 begin
+    _imageSizeBit = {$random(SEED)} % 3;
+    _imageSize = 2 ** (_imageSizeBit + 2);
     for(_channel=0 ; _channel<NUM_OF_CHANNEL ; _channel=_channel+1) begin
-        for(_row=0 ; _row<MAX_SIZE_OF_IMAGE ; _row=_row+1) begin
-            for(_col=0 ; _col<MAX_SIZE_OF_IMAGE ; _col=_col+1) begin
+        for(_row=0 ; _row<_imageSize ; _row=_row+1) begin
+            for(_col=0 ; _col<_imageSize ; _col=_col+1) begin
                 _image[_channel][_row][_col] = (pat<SIMPLE_PATNUM)
-                    ? {$random(SEED)} % 5
+                    ? {$random(SEED)} % 10
                     : {$random(SEED)} % 256;
             end
         end
@@ -427,26 +435,178 @@ begin
     for(_row=0 ; _row<SIZE_OF_TEMPLATE ; _row=_row+1) begin
         for(_col=0 ; _col<SIZE_OF_TEMPLATE ; _col=_col+1) begin
             _template[_row][_col] = (pat<SIMPLE_PATNUM)
-                ? {$random(SEED)} % 5
+                ? {$random(SEED)} % 10
                 : {$random(SEED)} % 256;
         end
     end
 end endtask
 
 task randomize_action;
-    integer _i;
+    integer _actIdx;
 begin
-    _actionSize = {$random(SEED)} % (MAX_SIZE_OF_ACTION - MIN_SIZE_OF_ACTION + 1) + MIN_SIZE_OF_ACTION;
+    _actionListSize = {$random(SEED)} % (MAX_SIZE_OF_ACTION - MIN_SIZE_OF_ACTION + 1) + MIN_SIZE_OF_ACTION;
     _actionList[0] = {$random(SEED)} % NUM_OF_FIRST_ACTION_TYPE;
-    _actionList[_actionSize-1] = LAST_ACTION_TYPE;
-    for(_i=1 ; _i<_actionSize ; _i=_i+1)begin
-        _actionList[_i] = {$random(SEED)} % (LAST_ACTION_TYPE - NUM_OF_FIRST_ACTION_TYPE) + NUM_OF_FIRST_ACTION_TYPE;
+    for(_actIdx=1 ; _actIdx<_actionListSize ; _actIdx=_actIdx+1)begin
+        _actionList[_actIdx] = {$random(SEED)} % (LAST_ACTION_TYPE - NUM_OF_FIRST_ACTION_TYPE) + NUM_OF_FIRST_ACTION_TYPE;
     end
+    _actionList[_actionListSize-1] = LAST_ACTION_TYPE;
 end endtask
 
 //
 // Dump
 //
+reg[4*8:1] _lineSize4  = "____";
+reg[4*8:1] _spaceSize4 = "    ";
+reg[9*8:1] _lineSize9  = "_________";
+reg[9*8:1] _spaceSize9 = "         ";
+task dump_input;
+    integer _channel;
+    integer _row;
+    integer _col;
+begin
+    file_out = $fopen("input.txt", "w");
+
+    $fwrite(file_out, "[PAT NO. %4d]\n\n", pat);
+    $fwrite(file_out, "[set # %1d]\n\n", set);
+
+    $fwrite(file_out, "\n");
+    $fwrite(file_out, "[=======]\n");
+    $fwrite(file_out, "[ Image ]\n");
+    $fwrite(file_out, "[=======]\n\n");
+    $fwrite(file_out, "[image_size / size] : %1d / %2d\n\n", _imageSizeBit, _imageSize);
+    $fwrite(file_out, "[0] : R\n");
+    $fwrite(file_out, "[1] : G\n");
+    $fwrite(file_out, "[2] : B\n\n");
+
+    // [#0] **1 **2 **3
+    // _________________
+    //   0| **1 **2 **3
+    //   1| **1 **2 **3
+    //   2| **1 **2 **3
+
+    // [#0] **1 **2 **3
+    for(_channel=0 ; _channel<NUM_OF_CHANNEL ; _channel=_channel+1) begin
+        $fwrite(file_out, "[%1d] ", _channel);
+        for(_col=0 ; _col<_imageSize ; _col=_col+1) $fwrite(file_out, "%3d ",_col);
+        $fwrite(file_out, "%0s", _spaceSize4);
+    end
+    $fwrite(file_out, "\n");
+    // _________________
+    for(_channel=0 ; _channel<NUM_OF_CHANNEL ; _channel=_channel+1) begin
+        $fwrite(file_out, "%0s", _lineSize4);
+        for(_col=0 ; _col<_imageSize ; _col=_col+1) $fwrite(file_out, "%0s", _lineSize4);
+        $fwrite(file_out, "%0s", _spaceSize4);
+    end
+    $fwrite(file_out, "\n");
+    //   0| **1 **2 **3
+    for(_row=0 ; _row<_imageSize ; _row=_row+1) begin
+        for(_channel=0 ; _channel<NUM_OF_CHANNEL ; _channel=_channel+1) begin
+            $fwrite(file_out, "%2d| ",_row);
+            for(_col=0 ; _col<_imageSize ; _col=_col+1) begin
+                $fwrite(file_out, "%3d ", _image[_channel][_row][_col]);
+            end
+            $fwrite(file_out, "%0s", _spaceSize4);
+        end
+        $fwrite(file_out, "\n");
+    end
+    $fwrite(file_out, "\n");
+
+    $fwrite(file_out, "[==========]\n");
+    $fwrite(file_out, "[ Template ]\n");
+    $fwrite(file_out, "[==========]\n\n");
+    
+    // [#0] **1 **2 **3
+    $fwrite(file_out, "[ ] ");
+    for(_col=0 ; _col<SIZE_OF_TEMPLATE ; _col=_col+1) $fwrite(file_out, "%3d ",_col);
+    $fwrite(file_out, "%0s", _spaceSize4);
+    $fwrite(file_out, "\n");
+    // _________________
+    $fwrite(file_out, "%0s", _lineSize4);
+    for(_col=0 ; _col<SIZE_OF_TEMPLATE ; _col=_col+1) $fwrite(file_out, "%0s", _lineSize4);
+    $fwrite(file_out, "%0s", _spaceSize4);
+    $fwrite(file_out, "\n");
+    //   0| **1 **2 **3
+    for(_row=0 ; _row<SIZE_OF_TEMPLATE ; _row=_row+1) begin
+        $fwrite(file_out, "%2d| ",_row);
+        for(_col=0 ; _col<SIZE_OF_TEMPLATE ; _col=_col+1) begin
+            $fwrite(file_out, "%3d ", _template[_row][_col]);
+        end
+        $fwrite(file_out, "%0s", _spaceSize4);
+        $fwrite(file_out, "\n");
+    end
+    $fwrite(file_out, "\n");
+end endtask
+
+function [20*8:1] getActionName;
+    input [2:0] _actIn;
+begin
+    getActionName = "None";
+    case(_actIn)
+        'd0: getActionName = "Grayscale - max";
+        'd1: getActionName = "Grayscale - average";
+        'd2: getActionName = "Grayscale - weighted";
+        'd3: getActionName = "Max pooling";
+        'd4: getActionName = "Negative";
+        'd5: getActionName = "Horizontal flip";
+        'd6: getActionName = "Image filter";
+        'd7: getActionName = "Cross correlation";
+        default: begin
+            $display("[ERROR] [Run Action] Error action type...");
+            $finish;
+        end
+    endcase
+end endfunction
+
+task dump_output;
+    integer _actIdx;
+    integer _row;
+    integer _col;
+begin
+    file_out = $fopen("output.txt", "w");
+
+    $fwrite(file_out, "[========]\n");
+    $fwrite(file_out, "[ Action ]\n");
+    $fwrite(file_out, "[========]\n\n");
+    $fwrite(file_out, "[Num of action] : %1d\n\n", _actionListSize);
+    for(_actIdx=0 ; _actIdx<_actionListSize ; _actIdx=_actIdx+1) begin
+        $fwrite(file_out, "[%1d] - %0s\n", _actIdx, getActionName(_actionList[_actIdx]));
+    end
+    $fwrite(file_out, "\n");
+
+    // [#0] **1 **2 **3
+    // _________________
+    //   0| **1 **2 **3
+    //   1| **1 **2 **3
+    //   2| **1 **2 **3
+
+    $fwrite(file_out, "[=====================]\n");
+    $fwrite(file_out, "[ Intermediate Output ]\n");
+    $fwrite(file_out, "[=====================]\n\n");
+    for(_actIdx=0 ; _actIdx<_actionListSize ; _actIdx=_actIdx+1) begin
+        $fwrite(file_out, "[action] : %0s\n", getActionName(_actionList[_actIdx]));
+        $fwrite(file_out, "[size  ] : %2d\n\n", _intermediateSize[_actIdx]);
+        // [#0] **1 **2 **3
+        $fwrite(file_out, "[%1d] ", _actIdx);
+        for(_col=0 ; _col<_intermediateSize[_actIdx] ; _col=_col+1) $fwrite(file_out, "%8d ",_col);
+        $fwrite(file_out, "%0s", _spaceSize4);
+        $fwrite(file_out, "\n");
+        // _________________
+        $fwrite(file_out, "%0s", _lineSize4);
+        for(_col=0 ; _col<_intermediateSize[_actIdx] ; _col=_col+1) $fwrite(file_out, "%0s", _lineSize9);
+        $fwrite(file_out, "%0s", _spaceSize4);
+        $fwrite(file_out, "\n");
+        //   0| **1 **2 **3
+        for(_row=0 ; _row<_intermediateSize[_actIdx] ; _row=_row+1) begin
+            $fwrite(file_out, "%2d| ",_row);
+            for(_col=0 ; _col<_intermediateSize[_actIdx] ; _col=_col+1) begin
+                $fwrite(file_out, "%8d ", _intermediate[_actIdx][_row][_col]);
+            end
+            $fwrite(file_out, "%0s", _spaceSize4);
+            $fwrite(file_out, "\n");
+        end
+        $fwrite(file_out, "\n");
+    end
+end endtask
 
 //======================================
 //              MAIN
@@ -484,10 +644,10 @@ task reset_task; begin
     rst_n = 1;
     in_valid = 0;
     in_valid2 = 0;
-    image = 0;
-    template = 0;
-    image_size = 0;
-    action = 0;
+    image = 'dx;
+    template = 'dx;
+    image_size = 'dx;
+    action = 'dx;
 
     tot_lat = 0;
 
@@ -507,21 +667,53 @@ task reset_figure_task; begin
     clear_intermediate;
 end endtask
 
-task input_figure_task; begin
+task input_figure_task;
+    integer _cnt;
+begin
     randomize_figure;
     repeat(({$random(SEED)} % 3 + 2)) @(negedge clk);
+    for(_cnt=0 ; _cnt<NUM_OF_CHANNEL*_imageSize*_imageSize ; _cnt=_cnt+1)begin
+        in_valid = 1;
+
+        image = _image[_cnt%NUM_OF_CHANNEL][(_cnt%NUM_OF_CHANNEL)/_imageSize][_cnt/NUM_OF_CHANNEL%_imageSize];
+
+        if(_cnt < SIZE_OF_TEMPLATE*SIZE_OF_TEMPLATE) template = _template[_cnt/SIZE_OF_TEMPLATE][_cnt%SIZE_OF_TEMPLATE];
+        else template = 'dx;
+
+        if(_cnt===0) image_size = _imageSizeBit;
+        else image_size = 'dx;
+
+        @(negedge clk);
+    end
+    in_valid = 0;
+    image = 'dx;
+    template = 'dx;
+    image_size = 'dx;
 end endtask
 
-task input_action_task; begin
+task input_action_task;
+    integer _cnt;
+begin
     randomize_action;
     repeat(({$random(SEED)} % 3 + 2)) @(negedge clk);
+    for(_cnt=0 ; _cnt<_actionListSize ; _cnt=_cnt+1)begin
+        in_valid2 = 1;
+        action = _actionList[_cnt];
+        @(negedge clk);
+    end
+    in_valid2 = 0;
+    action = 'dx;
 end endtask
 
 task cal_task;
     integer _actIdx;
 begin
-    for(_actIdx=0 ; _actIdx<_actionSize ; _actIdx=_actIdx+1)begin
+    for(_actIdx=0 ; _actIdx<_actionListSize ; _actIdx=_actIdx+1)begin
         run_action(_actIdx, _actionList[_actIdx]);
+    end
+    if(DEBUG) begin
+        dump_input;
+        dump_output;
     end
 end endtask
 
