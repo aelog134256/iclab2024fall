@@ -61,7 +61,8 @@ input      [71:0] tetris;
 //======================================
 //      PARAMETERS & VARIABLES
 //======================================
-// User modification
+//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+// Can be modified by user
 integer   SEED = 587;
 parameter DEBUG = 0;
 parameter MODE = 0;
@@ -78,17 +79,11 @@ parameter USER_MODE1_PATNUM = 10; // Only valid when MODE = 1
 parameter MODE0_PATNUM = 1000; // based on the input.txt
 // MODE 1
 parameter MODE1_PATNUM = USER_MODE1_PATNUM;
-
-parameter ROUNDNUM = 16;
-parameter HEIGHT = 12;
-parameter WIDTH  = 6;
-parameter NUM_OF_TYPE = 8;
-parameter NUM_OF_GRID = 4;
-
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 integer   PATNUM = 0;
 parameter CYCLE = `CYCLE_TIME;
 parameter DELAY = 1000;
-parameter OUT_NUM = 1;
+parameter OUTNUM = 1;
 
 integer round;
 
@@ -125,6 +120,11 @@ reg[10*8:1] bkg_white_prefix  = "\033[47;1m";
 //======================================
 //      DATA MODEL
 //======================================
+parameter ROUNDNUM = 16;
+parameter HEIGHT = 12;
+parameter WIDTH  = 6;
+parameter NUM_OF_TYPE = 8;
+parameter NUM_OF_GRID = 4;
 reg                   _board[HEIGHT+3:0][WIDTH-1:0];
 reg                   _boardOld[HEIGHT-1:0][WIDTH-1:0]; // Old board
 reg                   _boardFall[HEIGHT-1:0][WIDTH-1:0]; // Old board
@@ -777,8 +777,8 @@ end endtask
 task check_task; begin
     out_lat = 0;
     while(score_valid === 1) begin
-        if(out_lat == OUT_NUM) begin
-            $display("[ERROR] [OUTPUT] Out cycles is more than %3d at %-12d ps", OUT_NUM, $time*1000);
+        if(out_lat == OUTNUM) begin
+            $display("[ERROR] [OUTPUT] Out cycles is more than %3d at %-12d ps", OUTNUM, $time*1000);
             repeat(5) @(negedge clk);
             $finish;
         end

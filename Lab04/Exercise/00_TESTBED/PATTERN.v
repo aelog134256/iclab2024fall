@@ -68,6 +68,8 @@ input   [31:0]       out;
 //======================================
 //      PARAMETERS & VARIABLES
 //======================================
+//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+// Can be modified by user
 integer   TOTAL_PATNUM = 1000;
 integer   SIMPLE_PATNUM = 0;
 // Make sure the number should be with decimal point XXX.0
@@ -75,6 +77,7 @@ real      MIN_RANGE_OF_INPUT = -0.5;
 real      MAX_RANGE_OF_INPUT = 0.5;
 parameter PRECISION_OF_RANDOM_EXPONENT = -5; // 2^(PRECISION_OF_RANDOM_EXPONENT) ~ the exponent of MAX_RANGE_OF_INPUT
 integer   SEED = 5487;
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 parameter DEBUG = 1;
 parameter CYCLE = `CYCLE_TIME;
 parameter DELAY = 200;
