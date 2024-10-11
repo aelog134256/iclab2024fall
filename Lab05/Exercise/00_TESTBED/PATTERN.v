@@ -61,9 +61,9 @@ input out_value;
 // Can be modified by user
 integer   TOTAL_PATNUM = 10;
 integer   SIMPLE_PATNUM = 10;
-integer   SETNUM = 8;
 integer   SEED = 54871;
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+integer   SETNUM = 8;
 parameter DEBUG = 1;
 parameter CYCLE = `CYCLE_TIME;
 parameter DELAY = 5000;
