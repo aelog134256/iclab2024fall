@@ -743,7 +743,7 @@ begin
     for(_cnt=0 ; _cnt<NUM_OF_CHANNEL*_imageSize*_imageSize ; _cnt=_cnt+1)begin
         in_valid = 1;
 
-        image = _image[_cnt%NUM_OF_CHANNEL][(_cnt%NUM_OF_CHANNEL)/_imageSize][_cnt/NUM_OF_CHANNEL%_imageSize];
+        image = _image[_cnt%NUM_OF_CHANNEL][_cnt/(NUM_OF_CHANNEL*_imageSize)][(_cnt/NUM_OF_CHANNEL)%_imageSize];
 
         if(_cnt < SIZE_OF_TEMPLATE*SIZE_OF_TEMPLATE) template = _template[_cnt/SIZE_OF_TEMPLATE][_cnt%SIZE_OF_TEMPLATE];
         else template = 'dx;
