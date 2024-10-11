@@ -67,7 +67,7 @@ integer   SEED = 54871;
 parameter DEBUG = 1;
 parameter CYCLE = `CYCLE_TIME;
 parameter DELAY = 5000;
-integer   OUTBIT = 20;
+parameter OUTBIT = 20;
 integer   OUTNUM = -1;
 
 // PATTERN CONTROL
@@ -126,11 +126,11 @@ integer _imageSize;
 integer _actionListSize;
 
 // Intermediate output
-reg[19:0] _intermediate[MAX_SIZE_OF_ACTION-1:0][MAX_SIZE_OF_IMAGE-1:0][MAX_SIZE_OF_IMAGE-1:0];
+reg[OUTBIT-1:0] _intermediate[MAX_SIZE_OF_ACTION-1:0][MAX_SIZE_OF_IMAGE-1:0][MAX_SIZE_OF_IMAGE-1:0];
 integer _intermediateSize[MAX_SIZE_OF_ACTION-1:0];
 
 // Design output
-reg[19:0] _your[MAX_SIZE_OF_IMAGE-1:0][MAX_SIZE_OF_IMAGE-1:0];
+reg[OUTBIT-1:0] _your[MAX_SIZE_OF_IMAGE-1:0][MAX_SIZE_OF_IMAGE-1:0];
 integer _outputSize;
 
 //
@@ -161,17 +161,17 @@ begin
 end endtask
 
 task clear_intermediate;
-    integer num_idx;
+    integer _actId;
     integer _row;
     integer _col;
 begin
-    for(num_idx=0 ; num_idx<MAX_SIZE_OF_ACTION ; num_idx=num_idx+1) begin
+    for(_actId=0 ; _actId<MAX_SIZE_OF_ACTION ; _actId=_actId+1) begin
         // size
-        _intermediateSize[num_idx] = 0;
+        _intermediateSize[_actId] = 0;
         // intermediate figure
-        for(_row=0 ; _row<NUM_OF_CHANNEL ; _row=_row+1) begin
-            for(_col=0 ; _col<NUM_OF_CHANNEL ; _col=_col+1) begin
-                _intermediate[num_idx][_row][_col] = 0;
+        for(_row=0 ; _row<MAX_SIZE_OF_IMAGE ; _row=_row+1) begin
+            for(_col=0 ; _col<MAX_SIZE_OF_IMAGE ; _col=_col+1) begin
+                _intermediate[_actId][_row][_col] = 0;
             end
         end
     end
@@ -338,9 +338,12 @@ task img_filter_intermediate;
     input integer _actIdx;
     integer _row;
     integer _col;
+    integer _innerRow;
+    integer _innerCol;
 
     integer _sizeOfPad;
-    reg[7:0] _padding[MAX_SIZE_OF_IMAGE+SIZE_OF_PAD_WINDOW-1:0][MAX_SIZE_OF_IMAGE+SIZE_OF_PAD_WINDOW-1:0];
+    reg[OUTBIT-1:0] _padding[MAX_SIZE_OF_IMAGE+SIZE_OF_PAD_WINDOW-1:0][MAX_SIZE_OF_IMAGE+SIZE_OF_PAD_WINDOW-1:0];
+    reg[OUTBIT-1:0] _temp[SIZE_OF_FILTER_WINDOW*SIZE_OF_FILTER_WINDOW-1:0];
 begin
     // size
     _intermediateSize[_actIdx] = _intermediateSize[_actIdx-1];
@@ -372,6 +375,16 @@ begin
     _padding[_sizeOfPad-1][_sizeOfPad-1] = _intermediate[_actIdx-1][_intermediateSize[_actIdx-1]-1][_intermediateSize[_actIdx-1]-1];
 
     // intermediate figure
+    for(_row=0 ; _row<_intermediateSize[_actIdx] ; _row=_row+1) begin
+        for(_col=0 ; _col<_intermediateSize[_actIdx] ; _col=_col+1) begin
+            for(_innerRow=0 ; _innerRow<SIZE_OF_FILTER_WINDOW ; _innerRow=_innerRow+1) begin
+                for(_innerCol=0 ; _innerCol<SIZE_OF_FILTER_WINDOW ; _innerCol=_innerCol+1) begin
+                    _temp[_innerRow*SIZE_OF_FILTER_WINDOW+_innerCol] = _padding[_row+_innerRow][_col+_innerCol];
+                end
+            end
+            _intermediate[_actIdx][_row][_col] = findeMedian(_temp);
+        end
+    end
 
 end endtask
 
@@ -383,8 +396,8 @@ task cross_corr_intermediate;
     integer _innerCol;
 
     integer _sizeOfPad;
-    reg[7:0] _padding[MAX_SIZE_OF_IMAGE+SIZE_OF_PAD_WINDOW-1:0][MAX_SIZE_OF_IMAGE+SIZE_OF_PAD_WINDOW-1:0];
-    reg[19:0] _sum;
+    reg[OUTBIT-1:0] _padding[MAX_SIZE_OF_IMAGE+SIZE_OF_PAD_WINDOW-1:0][MAX_SIZE_OF_IMAGE+SIZE_OF_PAD_WINDOW-1:0];
+    reg[OUTBIT-1:0] _sum;
 begin
     // size
     _intermediateSize[_actIdx] = _intermediateSize[_actIdx-1];
@@ -440,7 +453,7 @@ begin
     for(_row=0 ; _row<SIZE_OF_TEMPLATE ; _row=_row+1) begin
         for(_col=0 ; _col<SIZE_OF_TEMPLATE ; _col=_col+1) begin
             _template[_row][_col] = (pat<SIMPLE_PATNUM)
-                ? {$random(SEED)} % 10
+                ? {$random(SEED)} % 5
                 : {$random(SEED)} % 256;
         end
     end
@@ -610,7 +623,58 @@ begin
         end
         $fwrite(file_out, "\n");
     end
+
+    $fwrite(file_out, "[=============]\n");
+    $fwrite(file_out, "[ Your answer ]\n");
+    $fwrite(file_out, "[=============]\n\n");
+    
+    // [#0] **1 **2 **3
+    $fwrite(file_out, "[ ] ");
+    for(_col=0 ; _col<_outputSize ; _col=_col+1) $fwrite(file_out, "%8d ",_col);
+    $fwrite(file_out, "%0s", _spaceSize4);
+    $fwrite(file_out, "\n");
+    // _________________
+    $fwrite(file_out, "%0s", _lineSize4);
+    for(_col=0 ; _col<_outputSize ; _col=_col+1) $fwrite(file_out, "%0s", _lineSize9);
+    $fwrite(file_out, "%0s", _spaceSize4);
+    $fwrite(file_out, "\n");
+    //   0| **1 **2 **3
+    for(_row=0 ; _row<_outputSize ; _row=_row+1) begin
+        $fwrite(file_out, "%2d| ",_row);
+        for(_col=0 ; _col<_outputSize ; _col=_col+1) begin
+            $fwrite(file_out, "%8d ", _your[_row][_col]);
+        end
+        $fwrite(file_out, "%0s", _spaceSize4);
+        $fwrite(file_out, "\n");
+    end
+    $fwrite(file_out, "\n");
 end endtask
+
+//
+// Utility
+//
+function[OUTBIT-1:0] findeMedian;
+    input[OUTBIT-1:0] in[SIZE_OF_FILTER_WINDOW*SIZE_OF_FILTER_WINDOW-1:0];
+
+    integer _idx1, _idx2;
+    reg[OUTBIT-1:0] sorted[SIZE_OF_FILTER_WINDOW*SIZE_OF_FILTER_WINDOW-1:0];
+    reg[OUTBIT-1:0] temp;
+begin
+    for(_idx1=0; _idx1<9; _idx1=_idx1+1) begin
+        sorted[_idx1] = in[_idx1];
+    end
+
+    for(_idx1=0; _idx1<SIZE_OF_FILTER_WINDOW*SIZE_OF_FILTER_WINDOW; _idx1=_idx1+1) begin
+        for(_idx2=0; _idx2<SIZE_OF_FILTER_WINDOW*SIZE_OF_FILTER_WINDOW-_idx1; _idx2=_idx2+1) begin
+            if (sorted[_idx2] > sorted[_idx2+1]) begin
+                temp = sorted[_idx2];
+                sorted[_idx2] = sorted[_idx2+1];
+                sorted[_idx2+1] = temp;
+            end
+        end
+    end
+    findeMedian = sorted[SIZE_OF_FILTER_WINDOW*SIZE_OF_FILTER_WINDOW/2];
+end endfunction
 
 //======================================
 //              MAIN
@@ -754,7 +818,7 @@ begin
             $finish;
         end
         
-        _your[out_lat/OUTBIT/_outputSize][(out_lat/OUTBIT)%_outputSize][OUTBIT-out_lat-1] = out_value;
+        _your[out_lat/OUTBIT/_outputSize][(out_lat/OUTBIT)%_outputSize][OUTBIT-(out_lat%OUTBIT)-1] = out_value;
 
         out_lat = out_lat + 1;
         @(negedge clk);
@@ -772,10 +836,12 @@ begin
         for(_col=0 ; _col<_outputSize ; _col=_col+1) begin
             if(_your[_row][_col] !== _intermediate[_actionListSize-1][_row][_col]) begin
                 $display("[ERROR] [OUTPUT] Output is not correct...\n");
-                $display("[ERROR] [OUTPUT] Dump debugging file...\n");
-                $display("[ERROR] [OUTPUT]      input.tx contains image and template]\n");
-                $display("[ERROR] [OUTPUT]      output.tx contains intermediate results and action list]\n");
-                $display("[ERROR] [OUTPUT] Your pixel is not correct at (%2d, %2d)", _row, _col);
+                $display("[ERROR] [OUTPUT] Dump debugging file...");
+                $display("[ERROR] [OUTPUT]      input.tx contains image and template");
+                $display("[ERROR] [OUTPUT]      output.tx contains intermediate results and action list\n");
+                $display("[ERROR] [OUTPUT] Your pixel is not correct at (%2d, %2d)\n", _row, _col);
+                dump_input;
+                dump_output;
                 repeat(5) @(negedge clk);
                 $finish;
             end
