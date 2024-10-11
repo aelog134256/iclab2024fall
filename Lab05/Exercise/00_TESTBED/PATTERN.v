@@ -275,8 +275,8 @@ begin
         // size
         _intermediateSize[_actIdx] = _intermediateSize[_actIdx-1];
         // intermediate figure
-        for(_row=0 ; _row<_intermediateSize[_actIdx] ; _row=_row+SIZE_OF_MAXPOOL_WINDOW) begin
-            for(_col=0 ; _col<_intermediateSize[_actIdx] ; _col=_col+SIZE_OF_MAXPOOL_WINDOW) begin
+        for(_row=0 ; _row<_intermediateSize[_actIdx] ; _row=_row+1) begin
+            for(_col=0 ; _col<_intermediateSize[_actIdx] ; _col=_col+1) begin
                 _intermediate[_actIdx][_row][_col] = 
                     _intermediate[_actIdx-1][_row][_col];
             end
@@ -327,9 +327,9 @@ begin
     // size
     _intermediateSize[_actIdx] = _intermediateSize[_actIdx-1];
     // intermediate figure
-    for(_col=0 ; _col<_intermediateSize[_actIdx]/2 ; _col=_col+1) begin
+    for(_col=0 ; _col<_intermediateSize[_actIdx] ; _col=_col+1) begin
         for(_row=0 ; _row<_intermediateSize[_actIdx] ; _row=_row+1) begin
-            _intermediate[_actIdx][_row][_col] = _intermediate[_actIdx-1][_row][_intermediateSize[_actIdx]/2-_col-1];
+            _intermediate[_actIdx][_row][_col] = _intermediate[_actIdx-1][_row][_intermediateSize[_actIdx]-_col-1];
         end
     end
 end endtask
@@ -552,6 +552,8 @@ begin
         $fwrite(file_out, "\n");
     end
     $fwrite(file_out, "\n");
+
+    $fclose(file_out);
 end endtask
 
 function [20*8:1] getActionName;
@@ -648,6 +650,8 @@ begin
         $fwrite(file_out, "\n");
     end
     $fwrite(file_out, "\n");
+
+    $fclose(file_out);
 end endtask
 
 //
