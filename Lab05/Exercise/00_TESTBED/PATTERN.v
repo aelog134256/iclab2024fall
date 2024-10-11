@@ -286,8 +286,8 @@ begin
         // size
         _intermediateSize[_actIdx] = _intermediateSize[_actIdx-1]/SIZE_OF_MAXPOOL_WINDOW;
         // intermediate figure
-        for(_row=0 ; _row<_intermediateSize[_actIdx] ; _row=_row+SIZE_OF_MAXPOOL_WINDOW) begin
-            for(_col=0 ; _col<_intermediateSize[_actIdx] ; _col=_col+SIZE_OF_MAXPOOL_WINDOW) begin
+        for(_row=0 ; _row<_intermediateSize[_actIdx-1] ; _row=_row+SIZE_OF_MAXPOOL_WINDOW) begin
+            for(_col=0 ; _col<_intermediateSize[_actIdx-1] ; _col=_col+SIZE_OF_MAXPOOL_WINDOW) begin
                 _tmp = _intermediate[_actIdx-1][_row][_col];
                 for(_pool_row=0 ; _pool_row<SIZE_OF_MAXPOOL_WINDOW ; _pool_row=_pool_row+1) begin
                     for(_pool_col=0 ; _pool_col<SIZE_OF_MAXPOOL_WINDOW ; _pool_col=_pool_col+1) begin
