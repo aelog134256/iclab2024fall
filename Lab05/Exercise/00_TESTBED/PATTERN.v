@@ -64,7 +64,7 @@ integer   SIMPLE_PATNUM = 10;
 integer   SEED = 54871;
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 integer   SETNUM = 8;
-parameter DEBUG = 1;
+parameter DEBUG = 0;
 parameter CYCLE = `CYCLE_TIME;
 parameter DELAY = 5000;
 parameter OUTBIT = 20;
@@ -140,43 +140,52 @@ task clear_input;
     integer _channel;
     integer _row;
     integer _col;
-    integer _i;
 begin
     for(_channel=0 ; _channel<NUM_OF_CHANNEL ; _channel=_channel+1) begin
         for(_row=0 ; _row<MAX_SIZE_OF_IMAGE ; _row=_row+1) begin
             for(_col=0 ; _col<MAX_SIZE_OF_IMAGE ; _col=_col+1) begin
-                _image[_channel][_row][_col] = 0;
+                _image[_channel][_row][_col] = 'dx;
             end
         end
     end
     for(_row=0 ; _row<SIZE_OF_TEMPLATE ; _row=_row+1) begin
         for(_col=0 ; _col<SIZE_OF_TEMPLATE ; _col=_col+1) begin
-            _template[_row][_col] = 0;
+            _template[_row][_col] = 'dx;
         end
-    end
-    _actionListSize = 0;
-    for(_i=0 ; _i<MAX_SIZE_OF_ACTION ; _i=_i+1)begin
-        _actionList[_i] = 0;
     end
 end endtask
 
 task clear_intermediate;
-    integer _actId;
+    integer _actIdx;
     integer _row;
     integer _col;
 begin
-    for(_actId=0 ; _actId<MAX_SIZE_OF_ACTION ; _actId=_actId+1) begin
-        // size
-        _intermediateSize[_actId] = 0;
+    for(_actIdx=0 ; _actIdx<MAX_SIZE_OF_ACTION ; _actIdx=_actIdx+1) begin
+        // intermediate size
+        _intermediateSize[_actIdx] = 0;
         // intermediate figure
         for(_row=0 ; _row<MAX_SIZE_OF_IMAGE ; _row=_row+1) begin
             for(_col=0 ; _col<MAX_SIZE_OF_IMAGE ; _col=_col+1) begin
-                _intermediate[_actId][_row][_col] = 0;
+                _intermediate[_actIdx][_row][_col] = 'dx;
             end
         end
+        // action size
+        _actionListSize = 0;
+        // action
+        _actionList[_actIdx] = 'dx;
     end
 end endtask
 
+task clear_your_answer;
+    integer _row;
+    integer _col;
+begin
+    for(_row=0 ; _row<MAX_SIZE_OF_IMAGE ; _row=_row+1) begin
+        for(_col=0 ; _col<MAX_SIZE_OF_IMAGE ; _col=_col+1) begin
+            _your[_row][_col] = 'dx;
+        end
+    end
+end endtask
 
 //
 // Operation
@@ -477,6 +486,13 @@ reg[4*8:1] _lineSize4  = "____";
 reg[4*8:1] _spaceSize4 = "    ";
 reg[9*8:1] _lineSize9  = "_________";
 reg[9*8:1] _spaceSize9 = "         ";
+task clear_file; begin
+    file_out = $fopen("input.txt", "w");
+    $fclose(file_out);
+    file_out = $fopen("output.txt", "w");
+    $fclose(file_out);
+end endtask
+
 task dump_input;
     integer _channel;
     integer _row;
@@ -700,6 +716,7 @@ task exe_task; begin
         reset_figure_task;
         input_figure_task;
         for(set=0 ; set<SETNUM ; set=set+1) begin
+            reset_intermediate_task;
             input_action_task;
             cal_task;
             wait_task;
@@ -737,6 +754,12 @@ end endtask
 task reset_figure_task; begin
     clear_input;
     clear_intermediate;
+end endtask
+
+task reset_intermediate_task; begin
+    clear_intermediate;
+    clear_your_answer;
+    clear_file;
 end endtask
 
 task input_figure_task;
