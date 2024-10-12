@@ -62,9 +62,9 @@ input out_value;
 integer   TOTAL_PATNUM = 10;
 integer   SIMPLE_PATNUM = 10;
 integer   SEED = 54871;
+parameter DEBUG = 0;
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 integer   SETNUM = 8;
-parameter DEBUG = 0;
 parameter CYCLE = `CYCLE_TIME;
 parameter DELAY = 5000;
 parameter OUTBIT = 20;
