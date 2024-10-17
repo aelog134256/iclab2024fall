@@ -8,7 +8,7 @@
     @issue :
         
     @todo :
-        
+        generate all possible pattern in brute force (2**(IP_BIT+4) ^2)
 */
 
 `ifdef RTL
@@ -300,8 +300,8 @@ task check_task; begin
         $display("[ERROR] [OUTPUT]      Your output is : %b", OUT_code);
         $display("[ERROR] [OUTPUT]      Golden data is : %b\n", _data);
         show_encode_table;
-        // @(negedge clk);
-        // $finish;
+        @(negedge clk);
+        $finish;
     end
 end endtask
 
