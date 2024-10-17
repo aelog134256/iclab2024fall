@@ -41,7 +41,7 @@ integer   TOTAL_PATNUM = 10;
 integer   SEED = 54871;
 // Control the probability of error bit generating
 // probability = ERR_NUM/ERR_DEN;
-parameter ERR_NUM = 1;
+parameter ERR_NUM = 2;
 parameter ERR_DEN = 2;
 //
 parameter DEBUG = 0;
@@ -76,25 +76,33 @@ reg[10*8:1] bkg_white_prefix  = "\033[47;1m";
 //======================================
 //      DATA MODEL
 //======================================
+parameter DISPLAY_ELEMENT_SIZE = 3;
+parameter DISPLAY_NUM_OF_SPACE = 2;
+parameter DISPLAY_NUM_OF_SEP = 2;
 parameter NUM_OF_HAMMING_BITS = $clog2(IP_BIT)+1;
 parameter SIZE_OF_ENCODE_DATE = IP_BIT+NUM_OF_HAMMING_BITS;
 reg[IP_BIT-1:0] _data;
+// Encode
 reg[NUM_OF_HAMMING_BITS-1:0] _encodeTable[SIZE_OF_ENCODE_DATE:1];
 reg[NUM_OF_HAMMING_BITS-1:0] _hammingCode;
 reg[SIZE_OF_ENCODE_DATE-1:0] _encodeData;
 reg[SIZE_OF_ENCODE_DATE-1:0] _encodeDataWithErr;
 integer errPos = -1;
 
+// Decode
+reg[NUM_OF_HAMMING_BITS-1:0] _decodeTable[SIZE_OF_ENCODE_DATE:1];
+reg[NUM_OF_HAMMING_BITS-1:0] _decodeResult;
+
 //
 // Operation
 //
 task randomize_data; begin
     _data = {$random(SEED)};
+    errPos = -1;
 end endtask
 
-task generate_hamming_code_table;
+task generate_encode_table;
     integer _bit;
-    integer _hammingBit;
     integer _tableCnt;
 begin
     // table
@@ -109,8 +117,6 @@ begin
             _tableCnt = _tableCnt+1;
         end
     end
-
-    
 end endtask
 
 task combine_hamming_code;
@@ -150,21 +156,73 @@ end endtask
 task randomize_error_bit; begin
     _encodeDataWithErr = _encodeData;
     if({$random(SEED)} % ERR_DEN < ERR_NUM) begin
-        errPos = {$random(SEED)} % SIZE_OF_ENCODE_DATE;
-        _encodeDataWithErr[errPos] = ~_encodeDataWithErr[errPos];
+        // index : 1 ~ SIZE_OF_ENCODE_DATE
+        // bit   : (SIZE_OF_ENCODE_DATE-1) ~ 0
+        errPos = {$random(SEED)} % SIZE_OF_ENCODE_DATE + 1;
+        _encodeDataWithErr[SIZE_OF_ENCODE_DATE-errPos] = ~_encodeDataWithErr[SIZE_OF_ENCODE_DATE-errPos];
+    end
+end endtask
+
+task generate_decode_table;
+    integer _bit;
+    integer _hammingBit;
+    integer _tableCnt;
+begin
+    // table
+    _tableCnt = 0;
+    for(_bit=1 ; _bit<=SIZE_OF_ENCODE_DATE ; _bit=_bit+1) begin
+        if(_encodeDataWithErr[SIZE_OF_ENCODE_DATE-_bit]) begin
+            _decodeTable[_bit] = _bit;
+        end
+    end
+
+    // find error
+    _decodeResult = 0;
+    _tableCnt = 0;
+    for(_hammingBit=0 ; _hammingBit<NUM_OF_HAMMING_BITS ; _hammingBit=_hammingBit+1) begin
+        for(_bit=1 ; _bit<=SIZE_OF_ENCODE_DATE ; _bit=_bit+1) begin
+            if(_encodeDataWithErr[SIZE_OF_ENCODE_DATE-_bit]) begin
+                _decodeResult[_hammingBit] = _decodeResult[_hammingBit] ^ _decodeTable[_bit][_hammingBit];
+            end
+        end
     end
 end endtask
 
 //
 // Display
 //
+task display_seperator;
+    input integer _num;
+    integer _idx;
+    reg[(DISPLAY_ELEMENT_SIZE+DISPLAY_NUM_OF_SPACE+DISPLAY_NUM_OF_SEP)*8:1] _line; // 4 = 2 spaces with 2 "+"
+begin
+    _line = "";
+    for(_idx=1 ; _idx<=DISPLAY_ELEMENT_SIZE+2 ; _idx=_idx+1) begin
+        _line = {_line, "-"};
+    end
+    _line = {_line, "+"};
+    $write("+");
+    for(_idx=0 ; _idx<_num ; _idx=_idx+1) $write("%0s", _line);
+    $write("\n");
+end endtask
+
+task display_element;
+    input reg[DISPLAY_ELEMENT_SIZE*8:1] _in;
+    input reg _isStart;
+    reg[(DISPLAY_ELEMENT_SIZE+DISPLAY_NUM_OF_SPACE+DISPLAY_NUM_OF_SEP)*8:1] _line;
+begin
+    _line = _isStart ? "| " : " ";
+    _line = {_line, _in};
+    _line = {_line, " |"};
+    $write("%0s", _line);
+end endtask
+
 task show_encode_processing;
     integer _idx;
     integer _bit;
     integer _tableCnt;
 
-    reg[4*8:1] _lineSize4WithSep  = "---+";
-    reg[4*8:1] _lineSize4  = "----";
+    reg[DISPLAY_ELEMENT_SIZE*8:1] _str;
 begin
     // data
     $display("[Info] Show the hamming encoding processing\n");
@@ -173,57 +231,63 @@ begin
     $display("[Info]         data : %-b\n", _data);
 
     $display("[Info] bit table of original data :\n");
-    $write("idx|");
-    for(_idx=1 ; _idx<=SIZE_OF_ENCODE_DATE ; _idx=_idx+1) $write(" %2d|", _idx);
-    $write("\n");
-    // _________________
-    $write("%0s", _lineSize4WithSep);
-    for(_idx=1 ; _idx<=SIZE_OF_ENCODE_DATE ; _idx=_idx+1) $write("%0s", _lineSize4);
+
+    display_seperator(SIZE_OF_ENCODE_DATE+1);
+
+    display_element("idx", 1);
+    for(_idx=1 ; _idx<=SIZE_OF_ENCODE_DATE ; _idx=_idx+1) begin
+        $sformat(_str, "%3d", _idx);
+        display_element(_str, 0);
+    end
     $write("\n");
 
-    $write("bit|");
+    display_seperator(SIZE_OF_ENCODE_DATE+1);
+
+    display_element("bit", 1);
     _tableCnt = 0;
     for(_idx=1 ; _idx<=SIZE_OF_ENCODE_DATE ; _idx=_idx+1) begin
         if(!isPowerOf2(_idx)) begin
-            $write(" %2d|", _data[IP_BIT-_tableCnt-1]);
+            $sformat(_str, "%3d", _data[IP_BIT-_tableCnt-1]);
+            display_element(_str, 0);
             // Increase the count to select the table index
             _tableCnt = _tableCnt+1;
         end
         else begin
-            $write("  X|");
+            display_element("  X", 0);
         end
     end
-    $write("\n\n");
+    $write("\n");
+
+    display_seperator(SIZE_OF_ENCODE_DATE+1);
+    $write("\n");
 
     // Hamming code table
     $display("[Info] [Hamming code] :");
     $display("[Info]    # of bits : %-3d\n", NUM_OF_HAMMING_BITS);
 
 
-    $display("[Info] [Hamming table] :\n");
-    // [#0] **1 **2 **3
-    // _________________
-    //   0| **1 **2 **3
-    //   1| **1 **2 **3
-    //   2| **1 **2 **3
-    // _________________
+    $display("[Info] [Hamming encode table] :\n");
+    
+    display_seperator(NUM_OF_HAMMING_BITS+1);
 
-    // [#0] **1 **2 **3
-    $write("[ ] ");
-    for(_idx=NUM_OF_HAMMING_BITS-1 ; _idx>=0 ; _idx=_idx-1) $write("%3d ", 2**_idx);
+    display_element("   ", 1);
+    for(_idx=NUM_OF_HAMMING_BITS-1 ; _idx>=0 ; _idx=_idx-1) begin
+        $sformat(_str, "%3d", 2**_idx);
+        display_element(_str, 0);
+    end
     $write("\n");
-    // _________________
-    $write("%0s", _lineSize4);
-    for(_idx=NUM_OF_HAMMING_BITS-1 ; _idx>=0 ; _idx=_idx-1) $write("%0s", _lineSize4);
-    $write("\n");
-    //   0| **1 **2 **3
+   
+    display_seperator(NUM_OF_HAMMING_BITS+1);
+
     _tableCnt = 0;
     for(_idx=1 ; _idx<=SIZE_OF_ENCODE_DATE ; _idx=_idx+1) begin
         if(!isPowerOf2(_idx)) begin
             if(_data[IP_BIT-_tableCnt-1]) begin
-                $write("%2d| ", _idx);
+                $sformat(_str, "%3d", _idx);
+                display_element(_str, 1);
                 for(_bit=NUM_OF_HAMMING_BITS-1 ; _bit>=0 ; _bit=_bit-1) begin
-                    $write("%3d ", _encodeTable[_idx][_bit]);
+                    $sformat(_str, "%3d", _encodeTable[_idx][_bit]);
+                    display_element(_str, 0);
                 end
                 $write("\n");
             end
@@ -231,14 +295,19 @@ begin
             _tableCnt = _tableCnt+1;
         end
     end
-    // _________________
-    $write("%0s", _lineSize4);
-    for(_idx=NUM_OF_HAMMING_BITS-1 ; _idx>=0 ; _idx=_idx-1) $write("%0s", _lineSize4);
+
+    display_seperator(NUM_OF_HAMMING_BITS+1);
+
+    display_element("   ", 1);
+    for(_idx=NUM_OF_HAMMING_BITS-1 ; _idx>=0 ; _idx=_idx-1) begin
+        $sformat(_str, "%3d", _hammingCode[_idx]);
+        display_element(_str, 0);
+    end
     $write("\n");
-    //    | **1 **2 **3
-    $write("  | ");
-    for(_idx=NUM_OF_HAMMING_BITS-1 ; _idx>=0 ; _idx=_idx-1) $write("%3d ", _hammingCode[_idx]);
-    $write("\n\n");
+
+    display_seperator(NUM_OF_HAMMING_BITS+1);
+    $write("\n");
+
 
     // Encoded data
     $display("[Info] [Encoded data] :");
@@ -246,20 +315,28 @@ begin
     $display("[Info]         data : %-b\n", _encodeData);
 
     $display("[Info] bit table of encoded data :\n");
-    $write("idx|");
-    for(_idx=1 ; _idx<=SIZE_OF_ENCODE_DATE ; _idx=_idx+1) $write(" %2d|", _idx);
-    $write("\n");
-    // _________________
-    $write("%0s", _lineSize4WithSep);
-    for(_idx=1 ; _idx<=SIZE_OF_ENCODE_DATE ; _idx=_idx+1) $write("%0s", _lineSize4);
+
+    display_seperator(SIZE_OF_ENCODE_DATE+1);
+
+    display_element("idx", 1);
+    for(_idx=1 ; _idx<=SIZE_OF_ENCODE_DATE ; _idx=_idx+1) begin
+        $sformat(_str, "%3d", _idx);
+        display_element(_str, 0);
+    end
     $write("\n");
 
-    $write("bit|");
+    display_seperator(SIZE_OF_ENCODE_DATE+1);
+
+    display_element("bit", 1);
     _tableCnt = 0;
     for(_bit=1 ; _bit<=SIZE_OF_ENCODE_DATE ; _bit=_bit+1) begin
-        $write(" %2d|", _encodeData[SIZE_OF_ENCODE_DATE-_bit]);
+        $sformat(_str, "%3d", _encodeData[SIZE_OF_ENCODE_DATE-_bit]);
+        display_element(_str, 0);
     end
-    $write("\n\n");
+    $write("\n");
+
+    display_seperator(SIZE_OF_ENCODE_DATE+1);
+    $write("\n");
 
     // Error data
     if(errPos === -1) begin
@@ -278,9 +355,76 @@ task show_decode_processing;
     integer _bit;
     integer _tableCnt;
 
-    reg[4*8:1] _lineSize4  = "____";
+    reg[DISPLAY_ELEMENT_SIZE*8:1] _str;
 begin
+    $display("[Info] [Encoded data with error] : %-b\n", _encodeDataWithErr);
+
+    if(errPos === -1) begin
+        $display("[Info] This pattern doesn't have error bit in the encoded data\n");
+    end
+    else begin
+        $display("[Info] Error position : %-3d\n", errPos);
+    end
+
+    display_seperator(SIZE_OF_ENCODE_DATE+1);
+
+    display_element("idx", 1);
+    for(_idx=1 ; _idx<=SIZE_OF_ENCODE_DATE ; _idx=_idx+1) begin
+        $sformat(_str, "%3d", _idx);
+        display_element(_str, 0);
+    end
+    $write("\n");
+
+    display_seperator(SIZE_OF_ENCODE_DATE+1);
+
+    display_element("bit", 1);
+    _tableCnt = 0;
+    for(_bit=1 ; _bit<=SIZE_OF_ENCODE_DATE ; _bit=_bit+1) begin
+        $sformat(_str, "%3d", _encodeDataWithErr[SIZE_OF_ENCODE_DATE-_bit]);
+        display_element(_str, 0);
+    end
+    $write("\n");
+
+    display_seperator(SIZE_OF_ENCODE_DATE+1);
+    $write("\n");
+
+    $display("[Info] [Hamming decode table] :\n");
     
+    display_seperator(NUM_OF_HAMMING_BITS+1);
+
+    display_element("   ", 1);
+    for(_idx=NUM_OF_HAMMING_BITS-1 ; _idx>=0 ; _idx=_idx-1) begin
+        $sformat(_str, "%3d", 2**_idx);
+        display_element(_str, 0);
+    end
+    $write("\n");
+   
+    display_seperator(NUM_OF_HAMMING_BITS+1);
+
+    _tableCnt = 0;
+    for(_idx=1 ; _idx<=SIZE_OF_ENCODE_DATE ; _idx=_idx+1) begin
+        if(_encodeDataWithErr[SIZE_OF_ENCODE_DATE-_idx]) begin
+            $sformat(_str, "%3d", _idx);
+            display_element(_str, 1);
+            for(_bit=NUM_OF_HAMMING_BITS-1 ; _bit>=0 ; _bit=_bit-1) begin
+                $sformat(_str, "%3d", _decodeTable[_idx][_bit]);
+                display_element(_str, 0);
+            end
+            $write("\n");
+        end
+    end
+
+    display_seperator(NUM_OF_HAMMING_BITS+1);
+
+    display_element("   ", 1);
+    for(_idx=NUM_OF_HAMMING_BITS-1 ; _idx>=0 ; _idx=_idx-1) begin
+        $sformat(_str, "%3d", _decodeResult[_idx]);
+        display_element(_str, 0);
+    end
+    $write("\n");
+
+    display_seperator(NUM_OF_HAMMING_BITS+1);
+    $write("\n");
 end endtask
 
 //
@@ -334,10 +478,10 @@ end endtask
 
 task encode_data_task; begin
     randomize_data;
-    generate_hamming_code_table;
+    generate_encode_table;
     combine_hamming_code;
     randomize_error_bit;
-    if(DEBUG) show_encode_processing;
+    generate_decode_table;
 end endtask
 
 task input_task; begin
@@ -345,12 +489,15 @@ task input_task; begin
     @(negedge clk);
 end endtask
 
-task check_task; begin
+task check_task;
+    reg[DISPLAY_ELEMENT_SIZE*8:1] a;
+begin
     if(OUT_code !== _data) begin
         $display("[ERROR] [OUTPUT] Your output is not correct");
         $display("[ERROR] [OUTPUT]      Your output is : %b", OUT_code);
         $display("[ERROR] [OUTPUT]      Golden data is : %b\n", _data);
-        show_encode_processing;
+        if(DEBUG) show_encode_processing;
+        show_decode_processing;
         @(negedge clk);
         $finish;
     end
