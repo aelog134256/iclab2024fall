@@ -8,7 +8,8 @@
     @issue :
         
     @todo :
-        generate all possible pattern in brute force (2**(IP_BIT+4) ^2)
+        1. generate all possible pattern in brute force (2**(IP_BIT+4) ^2)
+        3. show the decode processing
 */
 
 `ifdef RTL
@@ -78,7 +79,7 @@ reg[10*8:1] bkg_white_prefix  = "\033[47;1m";
 parameter NUM_OF_HAMMING_BITS = $clog2(IP_BIT)+1;
 parameter SIZE_OF_ENCODE_DATE = IP_BIT+NUM_OF_HAMMING_BITS;
 reg[IP_BIT-1:0] _data;
-reg[NUM_OF_HAMMING_BITS-1:0] _table[SIZE_OF_ENCODE_DATE:1];
+reg[NUM_OF_HAMMING_BITS-1:0] _encodeTable[SIZE_OF_ENCODE_DATE:1];
 reg[NUM_OF_HAMMING_BITS-1:0] _hammingCode;
 reg[SIZE_OF_ENCODE_DATE-1:0] _encodeData;
 reg[SIZE_OF_ENCODE_DATE-1:0] _encodeDataWithErr;
@@ -91,7 +92,7 @@ task randomize_data; begin
     _data = {$random(SEED)};
 end endtask
 
-task generate_code_table;
+task generate_hamming_code_table;
     integer _bit;
     integer _hammingBit;
     integer _tableCnt;
@@ -102,7 +103,7 @@ begin
         if(!isPowerOf2(_bit)) begin
             // data[]==1 => generate hamming code
             if(_data[IP_BIT-_tableCnt-1]) begin
-                _table[_bit] = _bit;
+                _encodeTable[_bit] = _bit;
             end
             // Increase the count to select the table index
             _tableCnt = _tableCnt+1;
@@ -112,7 +113,7 @@ begin
     
 end endtask
 
-task encode_data;
+task combine_hamming_code;
     integer _bit;
     integer _hammingBit;
     integer _tableCnt;
@@ -125,7 +126,7 @@ begin
             if(!isPowerOf2(_bit)) begin
                 // data[]==1 => generate hamming code
                 if(_data[IP_BIT-_tableCnt-1]) begin
-                    _hammingCode[_hammingBit] = _hammingCode[_hammingBit] ^ _table[_bit][_hammingBit];
+                    _hammingCode[_hammingBit] = _hammingCode[_hammingBit] ^ _encodeTable[_bit][_hammingBit];
                 end
                 // Increase the count to select the table index
                 _tableCnt = _tableCnt+1;
@@ -157,18 +158,42 @@ end endtask
 //
 // Display
 //
-task show_encode_table;
+task show_encode_processing;
     integer _idx;
     integer _bit;
     integer _tableCnt;
 
-    reg[4*8:1] _lineSize4  = "____";
+    reg[4*8:1] _lineSize4WithSep  = "---+";
+    reg[4*8:1] _lineSize4  = "----";
 begin
     // data
     $display("[Info] Show the hamming encoding processing\n");
     $display("[Info] [Original data] :");
     $display("[Info]    # of bits : %-3d", IP_BIT);
     $display("[Info]         data : %-b\n", _data);
+
+    $display("[Info] bit table of original data :\n");
+    $write("idx|");
+    for(_idx=1 ; _idx<=SIZE_OF_ENCODE_DATE ; _idx=_idx+1) $write(" %2d|", _idx);
+    $write("\n");
+    // _________________
+    $write("%0s", _lineSize4WithSep);
+    for(_idx=1 ; _idx<=SIZE_OF_ENCODE_DATE ; _idx=_idx+1) $write("%0s", _lineSize4);
+    $write("\n");
+
+    $write("bit|");
+    _tableCnt = 0;
+    for(_idx=1 ; _idx<=SIZE_OF_ENCODE_DATE ; _idx=_idx+1) begin
+        if(!isPowerOf2(_idx)) begin
+            $write(" %2d|", _data[IP_BIT-_tableCnt-1]);
+            // Increase the count to select the table index
+            _tableCnt = _tableCnt+1;
+        end
+        else begin
+            $write("  X|");
+        end
+    end
+    $write("\n\n");
 
     // Hamming code table
     $display("[Info] [Hamming code] :");
@@ -198,7 +223,7 @@ begin
             if(_data[IP_BIT-_tableCnt-1]) begin
                 $write("%2d| ", _idx);
                 for(_bit=NUM_OF_HAMMING_BITS-1 ; _bit>=0 ; _bit=_bit-1) begin
-                    $write("%3d ", _table[_idx][_bit]);
+                    $write("%3d ", _encodeTable[_idx][_bit]);
                 end
                 $write("\n");
             end
@@ -220,6 +245,22 @@ begin
     $display("[Info]    # of bits : %-3d", SIZE_OF_ENCODE_DATE);
     $display("[Info]         data : %-b\n", _encodeData);
 
+    $display("[Info] bit table of encoded data :\n");
+    $write("idx|");
+    for(_idx=1 ; _idx<=SIZE_OF_ENCODE_DATE ; _idx=_idx+1) $write(" %2d|", _idx);
+    $write("\n");
+    // _________________
+    $write("%0s", _lineSize4WithSep);
+    for(_idx=1 ; _idx<=SIZE_OF_ENCODE_DATE ; _idx=_idx+1) $write("%0s", _lineSize4);
+    $write("\n");
+
+    $write("bit|");
+    _tableCnt = 0;
+    for(_bit=1 ; _bit<=SIZE_OF_ENCODE_DATE ; _bit=_bit+1) begin
+        $write(" %2d|", _encodeData[SIZE_OF_ENCODE_DATE-_bit]);
+    end
+    $write("\n\n");
+
     // Error data
     if(errPos === -1) begin
         $display("[Info] This pattern doesn't have error bit in the encoded data\n");
@@ -230,6 +271,16 @@ begin
         $display("[Info]        data : %-b\n", _encodeDataWithErr);
     end
 
+end endtask
+
+task show_decode_processing;
+    integer _idx;
+    integer _bit;
+    integer _tableCnt;
+
+    reg[4*8:1] _lineSize4  = "____";
+begin
+    
 end endtask
 
 //
@@ -260,7 +311,7 @@ always #(CYCLE/2.0) clk = ~clk;
 task exe_task; begin
     pre_check_task;
     for(pat=0 ; pat<TOTAL_PATNUM ; pat=pat+1) begin
-        generate_hamming_code_task;
+        encode_data_task;
         input_task;
         check_task;
         // Print Pass Info and accumulate the total latency
@@ -281,12 +332,12 @@ task pre_check_task; begin
     end
 end endtask
 
-task generate_hamming_code_task; begin
+task encode_data_task; begin
     randomize_data;
-    generate_code_table;
-    encode_data;
+    generate_hamming_code_table;
+    combine_hamming_code;
     randomize_error_bit;
-    if(DEBUG) show_encode_table;
+    if(DEBUG) show_encode_processing;
 end endtask
 
 task input_task; begin
@@ -299,7 +350,7 @@ task check_task; begin
         $display("[ERROR] [OUTPUT] Your output is not correct");
         $display("[ERROR] [OUTPUT]      Your output is : %b", OUT_code);
         $display("[ERROR] [OUTPUT]      Golden data is : %b\n", _data);
-        show_encode_table;
+        show_encode_processing;
         @(negedge clk);
         $finish;
     end
