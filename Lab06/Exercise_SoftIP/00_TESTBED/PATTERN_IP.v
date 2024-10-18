@@ -79,7 +79,7 @@ reg[10*8:1] bkg_white_prefix  = "\033[47;1m";
 parameter DISPLAY_ELEMENT_SIZE = 3;
 parameter DISPLAY_NUM_OF_SPACE = 2;
 parameter DISPLAY_NUM_OF_SEP = 2;
-parameter NUM_OF_HAMMING_BITS = $clog2(IP_BIT)+1;
+parameter NUM_OF_HAMMING_BITS = 4;//$clog2(IP_BIT)+1;
 parameter SIZE_OF_ENCODE_DATE = IP_BIT+NUM_OF_HAMMING_BITS;
 reg[IP_BIT-1:0] _data;
 // Encode
