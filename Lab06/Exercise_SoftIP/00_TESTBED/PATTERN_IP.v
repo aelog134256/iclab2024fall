@@ -44,7 +44,7 @@ integer   SEED = 54871;
 parameter ERR_NUM = 2;
 parameter ERR_DEN = 2;
 //
-parameter DEBUG = 1;
+parameter DEBUG = 0;
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 parameter CYCLE = `CYCLE_TIME;
 
