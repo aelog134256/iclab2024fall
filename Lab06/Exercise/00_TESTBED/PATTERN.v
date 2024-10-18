@@ -16,6 +16,8 @@
     `define CYCLE_TIME 6.0
 `endif
 
+`define SEED_ENCODE 5201314
+
 module PATTERN(
     // Output signals
     clk,
@@ -43,10 +45,16 @@ input [206:0] out_data;
 //======================================
 //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 // Can be modified by user
-integer   TOTAL_PATNUM = 10;
-parameter SEED = 54871;
-// Control the probability of error bit generating
-// probability = ERR_NUM/ERR_DEN;
+integer   TOTAL_PATNUM = 100;
+// [Simple pattern]
+//      1. data will be range in -5~5
+//      2. There is no error 
+integer   SIMPLE_PATNUM = 10;
+//
+integer   SEED = 5487;
+// [Error probability]
+//      Control the probability of error bit generating
+//          probability = ERR_NUM/ERR_DEN;
 parameter ERR_NUM = 2;
 parameter ERR_DEN = 2;
 //
@@ -120,18 +128,33 @@ reg[206:0] _goldDeterminant;
 // endgenerate
 
 hammingCodeGenerator #(
-    .SEED(SEED)
-    ,.IP_BIT(DATA_BIT)
+     .IP_BIT(DATA_BIT)
     ,.ERR_NUM(ERR_NUM)
     ,.ERR_DEN(ERR_DEN)
     ) dataHCG();
 
+// Simple data
+// data will be range in -5~5
+// There is no error 
 hammingCodeGenerator #(
-     .SEED(SEED)
-    ,.IP_BIT(MODE_BIT)
+     .IP_BIT(DATA_BIT)
+    ,.ERR_NUM(0)
+    ,.ERR_DEN(ERR_DEN)
+    ) simpleDataHCG();
+
+hammingCodeGenerator #(
+     .IP_BIT(MODE_BIT)
     ,.ERR_NUM(ERR_NUM)
     ,.ERR_DEN(ERR_DEN)
     ) modeHCG();
+
+hammingCodeGenerator #(
+     .DISPLAY_ELEMENT_SIZE(DATA_BIT)
+    ) originalMatrixHCG();
+
+hammingCodeGenerator #(
+     .DISPLAY_ELEMENT_SIZE(NUN_OF_ENCODE_DATA)
+    ) encodeMatrixHCG();
 
 //
 // Operation
@@ -142,11 +165,111 @@ end endtask
 //
 // Display
 //
-task show_matrix_and_mode; begin
+task show_matrix_and_mode;
+    integer _row;
+    integer _col;
+
+    reg[DATA_BIT*8:1] _str1;
+    reg[NUN_OF_ENCODE_DATA*8:1] _str2;
+begin
     $display("[Info] [Mode] : %-b", _mode);
     $display("[Info]    window size : %-d\n", _windowSize);
     
-    $display("[Info] [Matrix]\n");
+    $display("[Info] [Data Matrix] [Decimal]\n");
+    originalMatrixHCG.display_seperator(SIZE_OF_MATRIX+1);
+    // Column index
+    $sformat(_str1, "%11s", "origin(10)");
+    originalMatrixHCG.display_element(_str1, 1);
+    for(_col=0 ; _col<SIZE_OF_MATRIX ; _col=_col+1) begin
+        $sformat(_str1, "%10s%1d", "#", _col);
+        originalMatrixHCG.display_element(_str1, 0);
+    end
+    originalMatrixHCG.display_new_line;
+    originalMatrixHCG.display_seperator(SIZE_OF_MATRIX+1);
+    // Row index + elements
+    for(_row=0 ; _row<SIZE_OF_MATRIX ; _row=_row+1) begin
+        $sformat(_str1, "%10s%1d", "#", _row);
+        originalMatrixHCG.display_element(_str1, 1);
+        for(_col=0 ; _col<SIZE_OF_MATRIX ; _col=_col+1) begin
+            $sformat(_str1, "%11d", $signed(_data[_row][_col]));
+            originalMatrixHCG.display_element(_str1, 0);
+        end
+        originalMatrixHCG.display_new_line;
+    end
+    originalMatrixHCG.display_seperator(SIZE_OF_MATRIX+1);
+    originalMatrixHCG.display_new_line;
+
+    $display("[Info] [Data Matrix] [Binary]\n");
+    originalMatrixHCG.display_seperator(SIZE_OF_MATRIX+1);
+    // Column index
+    $sformat(_str1, "%11s", "origin(2)");
+    originalMatrixHCG.display_element(_str1, 1);
+    for(_col=0 ; _col<SIZE_OF_MATRIX ; _col=_col+1) begin
+        $sformat(_str1, "%10s%1d", "#", _col);
+        originalMatrixHCG.display_element(_str1, 0);
+    end
+    originalMatrixHCG.display_new_line;
+    originalMatrixHCG.display_seperator(SIZE_OF_MATRIX+1);
+    // Row index + elements
+    for(_row=0 ; _row<SIZE_OF_MATRIX ; _row=_row+1) begin
+        $sformat(_str1, "%10s%1d", "#", _row);
+        originalMatrixHCG.display_element(_str1, 1);
+        for(_col=0 ; _col<SIZE_OF_MATRIX ; _col=_col+1) begin
+            $sformat(_str1, "%11b", _data[_row][_col]);
+            originalMatrixHCG.display_element(_str1, 0);
+        end
+        originalMatrixHCG.display_new_line;
+    end
+    originalMatrixHCG.display_seperator(SIZE_OF_MATRIX+1);
+    originalMatrixHCG.display_new_line;
+    
+    $display("[Info] [Received Matrix] [Decimal]\n");
+    encodeMatrixHCG.display_seperator(SIZE_OF_MATRIX+1);
+    // Column index
+    $sformat(_str2, "%15s", "received(10)");
+    encodeMatrixHCG.display_element(_str2, 1);
+    for(_col=0 ; _col<SIZE_OF_MATRIX ; _col=_col+1) begin
+        $sformat(_str2, "%14s%1d", "#", _col);
+        encodeMatrixHCG.display_element(_str2, 0);
+    end
+    encodeMatrixHCG.display_new_line;
+    encodeMatrixHCG.display_seperator(SIZE_OF_MATRIX+1);
+    // Row index + elements
+    for(_row=0 ; _row<SIZE_OF_MATRIX ; _row=_row+1) begin
+        $sformat(_str2, "%14s%1d", "#", _row);
+        encodeMatrixHCG.display_element(_str2, 1);
+        for(_col=0 ; _col<SIZE_OF_MATRIX ; _col=_col+1) begin
+            $sformat(_str2, "%15d", $signed(_encodeData[_row][_col]));
+            encodeMatrixHCG.display_element(_str2, 0);
+        end
+        encodeMatrixHCG.display_new_line;
+    end
+    encodeMatrixHCG.display_seperator(SIZE_OF_MATRIX+1);
+    encodeMatrixHCG.display_new_line;
+
+    $display("[Info] [Received Matrix] [Binary]\n");
+    encodeMatrixHCG.display_seperator(SIZE_OF_MATRIX+1);
+    // Column index
+    $sformat(_str2, "%15s", "received(2)");
+    encodeMatrixHCG.display_element(_str2, 1);
+    for(_col=0 ; _col<SIZE_OF_MATRIX ; _col=_col+1) begin
+        $sformat(_str2, "%14s%1d", "#", _col);
+        encodeMatrixHCG.display_element(_str2, 0);
+    end
+    encodeMatrixHCG.display_new_line;
+    encodeMatrixHCG.display_seperator(SIZE_OF_MATRIX+1);
+    // Row index + elements
+    for(_row=0 ; _row<SIZE_OF_MATRIX ; _row=_row+1) begin
+        $sformat(_str2, "%14s%1d", "#", _row);
+        encodeMatrixHCG.display_element(_str2, 1);
+        for(_col=0 ; _col<SIZE_OF_MATRIX ; _col=_col+1) begin
+            $sformat(_str2, "%15b", _encodeData[_row][_col]);
+            encodeMatrixHCG.display_element(_str2, 0);
+        end
+        encodeMatrixHCG.display_new_line;
+    end
+    encodeMatrixHCG.display_seperator(SIZE_OF_MATRIX+1);
+    encodeMatrixHCG.display_new_line;
 
     $display("[Info] [Determinant] : ");
     $display("[Info]    Your determinant : \n%d", _yourDeterminant);
@@ -231,10 +354,18 @@ begin
     // matrix
     for(_row=0 ; _row<SIZE_OF_MATRIX ; _row=_row+1) begin
         for(_col=0 ; _col<SIZE_OF_MATRIX ; _col=_col+1) begin
-            dataHCG.randomize_data();
-            dataHCG.run();
-            _data[_row][_col] = dataHCG.getOriginalData();
-            _encodeData[_row][_col] = dataHCG.getEncodeDataWithErr();
+            if(pat < SIMPLE_PATNUM) begin
+                simpleDataHCG.randomize_data(1);
+                simpleDataHCG.run();
+                _data[_row][_col] = simpleDataHCG.getOriginalData();
+                _encodeData[_row][_col] = simpleDataHCG.getEncodeDataWithErr();
+            end
+            else begin
+                dataHCG.randomize_data(0);
+                dataHCG.run();
+                _data[_row][_col] = dataHCG.getOriginalData();
+                _encodeData[_row][_col] = dataHCG.getEncodeDataWithErr();
+            end
         end
     end
 end endtask
@@ -386,20 +517,22 @@ endmodule
 //
 //
 //======================================
+
+//================================================================================================================
 module hammingCodeGenerator #(
-    parameter SEED = 5487,
     parameter IP_BIT = 8,
     parameter ERR_NUM = 2,
-    parameter ERR_DEN = 2
+    parameter ERR_DEN = 2,
+    parameter DISPLAY_ELEMENT_SIZE = 3
 );
 
 //======================================
-//      INPUT & OUTPUT
+//      PARAMETERS & VARIABLES
 //======================================
-parameter DISPLAY_ELEMENT_SIZE = 3;
+integer   SEED = `SEED_ENCODE;
 parameter DISPLAY_NUM_OF_SPACE = 2;
 parameter DISPLAY_NUM_OF_SEP   = 2;
-parameter NUM_OF_HAMMING_BITS = $clog2(IP_BIT)+1;
+parameter NUM_OF_HAMMING_BITS = 4;
 parameter SIZE_OF_ENCODE_DATE = IP_BIT+NUM_OF_HAMMING_BITS;
 
 // Encode
@@ -441,8 +574,13 @@ end endfunction
 //
 // Operation
 //
-task randomize_data; begin
+task randomize_data;
+    input integer isSimple;
+begin
     _data = {$random(SEED)};
+    if(isSimple) begin
+        _data =  {$random(SEED)} % 6;
+    end
     errPos = -1;
 end endtask
 
@@ -482,8 +620,8 @@ task combine_hamming_code;
 begin
     // hamming code
     _hammingCode = 0;
-    _tableCnt = 0;
     for(_hammingBit=0 ; _hammingBit<NUM_OF_HAMMING_BITS ; _hammingBit=_hammingBit+1) begin
+        _tableCnt = 0;
         for(_bit=1 ; _bit<=SIZE_OF_ENCODE_DATE ; _bit=_bit+1) begin
             if(!isPowerOf2(_bit)) begin
                 // data[]==1 => generate hamming code
@@ -547,6 +685,10 @@ end endtask
 //
 // Display
 //
+task display_new_line; begin
+    $write("\n");
+end endtask
+
 task display_seperator;
     input integer _num;
     integer _idx;
@@ -595,7 +737,7 @@ begin
         $sformat(_str, "%3d", _idx);
         display_element(_str, 0);
     end
-    $write("\n");
+    display_new_line;
 
     display_seperator(SIZE_OF_ENCODE_DATE+1);
 
@@ -612,10 +754,10 @@ begin
             display_element("  X", 0);
         end
     end
-    $write("\n");
+    display_new_line;
 
     display_seperator(SIZE_OF_ENCODE_DATE+1);
-    $write("\n");
+    display_new_line;
 
     // Hamming code table
     $display("[Info] [Hamming code] :");
@@ -631,7 +773,7 @@ begin
         $sformat(_str, "%3d", 2**_idx);
         display_element(_str, 0);
     end
-    $write("\n");
+    display_new_line;
    
     display_seperator(NUM_OF_HAMMING_BITS+1);
 
@@ -645,7 +787,7 @@ begin
                     $sformat(_str, "%3d", _encodeTable[_idx][_bit]);
                     display_element(_str, 0);
                 end
-                $write("\n");
+                display_new_line;
             end
             // Increase the count to select the table index
             _tableCnt = _tableCnt+1;
@@ -659,10 +801,10 @@ begin
         $sformat(_str, "%3d", _hammingCode[_idx]);
         display_element(_str, 0);
     end
-    $write("\n");
+    display_new_line;
 
     display_seperator(NUM_OF_HAMMING_BITS+1);
-    $write("\n");
+    display_new_line;
 
 
     // Encoded data
@@ -679,7 +821,7 @@ begin
         $sformat(_str, "%3d", _idx);
         display_element(_str, 0);
     end
-    $write("\n");
+    display_new_line;
 
     display_seperator(SIZE_OF_ENCODE_DATE+1);
 
@@ -689,10 +831,10 @@ begin
         $sformat(_str, "%3d", _encodeData[SIZE_OF_ENCODE_DATE-_bit]);
         display_element(_str, 0);
     end
-    $write("\n");
+    display_new_line;
 
     display_seperator(SIZE_OF_ENCODE_DATE+1);
-    $write("\n");
+    display_new_line;
 
     // Error data
     if(errPos === -1) begin
@@ -729,7 +871,7 @@ begin
         $sformat(_str, "%3d", _idx);
         display_element(_str, 0);
     end
-    $write("\n");
+    display_new_line;
 
     display_seperator(SIZE_OF_ENCODE_DATE+1);
 
@@ -739,10 +881,10 @@ begin
         $sformat(_str, "%3d", _encodeDataWithErr[SIZE_OF_ENCODE_DATE-_bit]);
         display_element(_str, 0);
     end
-    $write("\n");
+    display_new_line;
 
     display_seperator(SIZE_OF_ENCODE_DATE+1);
-    $write("\n");
+    display_new_line;
 
     $display("[Info] [Hamming decode table] :\n");
     
@@ -753,7 +895,7 @@ begin
         $sformat(_str, "%3d", 2**_idx);
         display_element(_str, 0);
     end
-    $write("\n");
+    display_new_line;
    
     display_seperator(NUM_OF_HAMMING_BITS+1);
 
@@ -766,7 +908,7 @@ begin
                 $sformat(_str, "%3d", _decodeTable[_idx][_bit]);
                 display_element(_str, 0);
             end
-            $write("\n");
+            display_new_line;
         end
     end
 
@@ -777,10 +919,10 @@ begin
         $sformat(_str, "%3d", _decodeResult[_idx]);
         display_element(_str, 0);
     end
-    $write("\n");
+    display_new_line;
 
     display_seperator(NUM_OF_HAMMING_BITS+1);
-    $write("\n");
+    display_new_line;
 end endtask
 
 //

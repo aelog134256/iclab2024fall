@@ -191,6 +191,10 @@ end endtask
 //
 // Display
 //
+task display_new_line; begin
+    $write("\n");
+end endtask
+
 task display_seperator;
     input integer _num;
     integer _idx;
@@ -239,7 +243,7 @@ begin
         $sformat(_str, "%3d", _idx);
         display_element(_str, 0);
     end
-    $write("\n");
+    display_new_line;
 
     display_seperator(SIZE_OF_ENCODE_DATE+1);
 
@@ -256,10 +260,10 @@ begin
             display_element("  X", 0);
         end
     end
-    $write("\n");
+    display_new_line;
 
     display_seperator(SIZE_OF_ENCODE_DATE+1);
-    $write("\n");
+    display_new_line;
 
     // Hamming code table
     $display("[Info] [Hamming code] :");
@@ -275,7 +279,7 @@ begin
         $sformat(_str, "%3d", 2**_idx);
         display_element(_str, 0);
     end
-    $write("\n");
+    display_new_line;
    
     display_seperator(NUM_OF_HAMMING_BITS+1);
 
@@ -289,7 +293,7 @@ begin
                     $sformat(_str, "%3d", _encodeTable[_idx][_bit]);
                     display_element(_str, 0);
                 end
-                $write("\n");
+                display_new_line;
             end
             // Increase the count to select the table index
             _tableCnt = _tableCnt+1;
@@ -303,10 +307,10 @@ begin
         $sformat(_str, "%3d", _hammingCode[_idx]);
         display_element(_str, 0);
     end
-    $write("\n");
+    display_new_line;
 
     display_seperator(NUM_OF_HAMMING_BITS+1);
-    $write("\n");
+    display_new_line;
 
 
     // Encoded data
@@ -323,7 +327,7 @@ begin
         $sformat(_str, "%3d", _idx);
         display_element(_str, 0);
     end
-    $write("\n");
+    display_new_line;
 
     display_seperator(SIZE_OF_ENCODE_DATE+1);
 
@@ -333,10 +337,10 @@ begin
         $sformat(_str, "%3d", _encodeData[SIZE_OF_ENCODE_DATE-_bit]);
         display_element(_str, 0);
     end
-    $write("\n");
+    display_new_line;
 
     display_seperator(SIZE_OF_ENCODE_DATE+1);
-    $write("\n");
+    display_new_line;
 
     // Error data
     if(errPos === -1) begin
@@ -373,7 +377,7 @@ begin
         $sformat(_str, "%3d", _idx);
         display_element(_str, 0);
     end
-    $write("\n");
+    display_new_line;
 
     display_seperator(SIZE_OF_ENCODE_DATE+1);
 
@@ -383,10 +387,10 @@ begin
         $sformat(_str, "%3d", _encodeDataWithErr[SIZE_OF_ENCODE_DATE-_bit]);
         display_element(_str, 0);
     end
-    $write("\n");
+    display_new_line;
 
     display_seperator(SIZE_OF_ENCODE_DATE+1);
-    $write("\n");
+    display_new_line;
 
     $display("[Info] [Hamming decode table] :\n");
     
@@ -397,7 +401,7 @@ begin
         $sformat(_str, "%3d", 2**_idx);
         display_element(_str, 0);
     end
-    $write("\n");
+    display_new_line;
    
     display_seperator(NUM_OF_HAMMING_BITS+1);
 
@@ -410,7 +414,7 @@ begin
                 $sformat(_str, "%3d", _decodeTable[_idx][_bit]);
                 display_element(_str, 0);
             end
-            $write("\n");
+            display_new_line;
         end
     end
 
@@ -421,10 +425,10 @@ begin
         $sformat(_str, "%3d", _decodeResult[_idx]);
         display_element(_str, 0);
     end
-    $write("\n");
+    display_new_line;
 
     display_seperator(NUM_OF_HAMMING_BITS+1);
-    $write("\n");
+    display_new_line;
 end endtask
 
 //
