@@ -126,8 +126,8 @@ task combine_hamming_code;
 begin
     // hamming code
     _hammingCode = 0;
-    _tableCnt = 0;
     for(_hammingBit=0 ; _hammingBit<NUM_OF_HAMMING_BITS ; _hammingBit=_hammingBit+1) begin
+        _tableCnt = 0;
         for(_bit=1 ; _bit<=SIZE_OF_ENCODE_DATE ; _bit=_bit+1) begin
             if(!isPowerOf2(_bit)) begin
                 // data[]==1 => generate hamming code
@@ -492,6 +492,7 @@ end endtask
 task check_task;
     reg[DISPLAY_ELEMENT_SIZE*8:1] a;
 begin
+    @(posedge clk);
     if(OUT_code !== _data) begin
         $display("[ERROR] [OUTPUT] Your output is not correct");
         $display("[ERROR] [OUTPUT]      Your output is : %b", OUT_code);
