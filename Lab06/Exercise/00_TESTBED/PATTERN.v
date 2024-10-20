@@ -403,8 +403,6 @@ begin
             $finish;
         end
     endcase
-    modeHCG.setData('b10110);
-    _windowSize = 3;
     modeHCG.run();
     _mode = modeHCG.getOriginalData();
     _encodeMode = modeHCG.getEncodeDataWithErr();
