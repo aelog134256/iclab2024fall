@@ -16,7 +16,7 @@
     `define CYCLE_TIME 6.0
 `endif
 
-`define SEED_ENCODE 5201314
+`define SEED_ENCODE 5201314111
 
 module PATTERN(
     // Output signals
@@ -90,8 +90,8 @@ reg[10*8:1] bkg_white_prefix  = "\033[47;1m";
 //======================================
 parameter NUM_OF_MODE = 3;
 parameter SIZE_OF_MATRIX = 4;
-parameter MAX_SIZE_OF_MAXTRIX = 4;
-parameter MIN_SIZE_OF_MAXTRIX = 2;
+parameter MAX_SIZE_OF_MATRIX = 4;
+parameter MIN_SIZE_OF_MATRIX = 2;
 parameter DATA_BIT = 11;
 parameter MODE_BIT = 5;
 parameter NUM_OF_DATA_HAMMING_BITS = 4;//$clog2(DATA_BIT)+1;
@@ -99,34 +99,23 @@ parameter NUM_OF_MODE_HAMMING_BITS = 4;//$clog2(MODE_BIT)+1;
 parameter NUN_OF_ENCODE_DATA = DATA_BIT+NUM_OF_DATA_HAMMING_BITS;
 parameter NUN_OF_ENCODE_MODE = MODE_BIT+NUM_OF_MODE_HAMMING_BITS;
 
-reg[DATA_BIT-1:0] _data[SIZE_OF_MATRIX-1:0][SIZE_OF_MATRIX-1:0];
-reg[NUN_OF_ENCODE_DATA-1:0] _encodeData[SIZE_OF_MATRIX-1:0][SIZE_OF_MATRIX-1:0];
-reg[MODE_BIT-1:0] _mode;
-reg[NUN_OF_ENCODE_MODE-1:0] _encodeMode;
-integer _windowSize;
-
-reg[206:0] _yourDeterminant;
-reg[206:0] _goldDeterminant;
+reg signed[DATA_BIT-1:0] _data[SIZE_OF_MATRIX-1:0][SIZE_OF_MATRIX-1:0];
+reg signed[NUN_OF_ENCODE_DATA-1:0] _encodeData[SIZE_OF_MATRIX-1:0][SIZE_OF_MATRIX-1:0];
 /*
     5'b00100 : 2*2
     5'b00110 : 3*3
     5'b10110 : 4*4
 */
+reg[MODE_BIT-1:0] _mode;
+reg[NUN_OF_ENCODE_MODE-1:0] _encodeMode;
+integer _windowSize;
 
-// genvar gen_row, gen_col;
-// generate
-//     for(gen_row=0 ; gen_row<SIZE_OF_MATRIX ; gen_row=gen_row+1) begin : hcgRow
-//         for(gen_col=0 ; gen_col<SIZE_OF_MATRIX ; gen_col=gen_col+1) begin : hcgCol
-//             hammingCodeGenerator #(
-//                 .SEED(SEED)
-//                 ,.IP_BIT(DATA_BIT)
-//                 ,.ERR_NUM(ERR_NUM)
-//                 ,.ERR_DEN(ERR_DEN)
-//                 ) dataHCG();
-//         end
-//     end
-// endgenerate
+reg[dc4x4.BITS_OF_OUTPUT-1:0] _yourDeterminant;
+reg[dc4x4.BITS_OF_OUTPUT-1:0] _goldDeterminant;
 
+//
+// Hamming code generator
+//
 hammingCodeGenerator #(
      .IP_BIT(DATA_BIT)
     ,.ERR_NUM(ERR_NUM)
@@ -157,9 +146,54 @@ hammingCodeGenerator #(
     ) encodeMatrixHCG();
 
 //
+// Determiant calculator
+//
+determinantCalculator #(
+     .MAX_SIZE_OF_MATRIX(MAX_SIZE_OF_MATRIX)
+    ,.SIZE_OF_MATRIX(SIZE_OF_MATRIX)
+    ,.SIZE_OF_WINDOW(2)
+    ,.BITS_OF_MATRIX(DATA_BIT)
+) dc2x2();
+
+determinantCalculator #(
+     .MAX_SIZE_OF_MATRIX(MAX_SIZE_OF_MATRIX)
+    ,.SIZE_OF_MATRIX(SIZE_OF_MATRIX)
+    ,.SIZE_OF_WINDOW(3)
+    ,.BITS_OF_MATRIX(DATA_BIT)
+) dc3x3();
+
+determinantCalculator #(
+     .MAX_SIZE_OF_MATRIX(MAX_SIZE_OF_MATRIX)
+    ,.SIZE_OF_MATRIX(SIZE_OF_MATRIX)
+    ,.SIZE_OF_WINDOW(4)
+    ,.BITS_OF_MATRIX(DATA_BIT)
+) dc4x4();
+
+//
 // Operation
 //
 task cal_determinant; begin
+    case(_windowSize)
+        'd2: begin
+            dc2x2.setMatrix(_data);
+            dc2x2.run();
+            _goldDeterminant = dc2x2.getDeterminant();
+        end
+        'd3: begin
+            dc3x3.setMatrix(_data);
+            dc3x3.run();
+            _goldDeterminant = dc3x3.getDeterminant();
+        end
+        'd4: begin
+            dc4x4.setMatrix(_data);
+            dc4x4.run();
+            _goldDeterminant = dc4x4.getDeterminant();
+        end
+        default: begin
+            $display("[ERROR] [CAL DETERMINANT] Invalid window size : %-d", _windowSize);
+            $finish;
+        end
+    endcase
 end endtask
 
 //
@@ -272,8 +306,30 @@ begin
     encodeMatrixHCG.display_new_line;
 
     $display("[Info] [Determinant] : ");
-    $display("[Info]    Your determinant : \n%d", _yourDeterminant);
-    $display("[Info]    Gold determinant : \n%d\n", _goldDeterminant);
+    $display("[Info]    Your determinant : \n");
+    $display("[Info]        [ %-d ]", _yourDeterminant);
+    $display("[Info]        [ %-b ]\n", _yourDeterminant);
+    $display("[Info]    Gold determinant : \n");
+    $display("[Info]        [ %-d ]", _goldDeterminant);
+    $display("[Info]        [ %-b ]\n", _goldDeterminant);
+
+    $display("[Info] [Determinant Array] : \n");
+    case(_windowSize)
+        'd2: begin
+            dc2x2.show_determinant();
+        end
+        'd3: begin
+            dc3x3.show_determinant();
+        end
+        'd4: begin
+            dc4x4.show_determinant();
+        end
+        default: begin
+            $display("[ERROR] [SHOW] Invalid window size : %-d", _windowSize);
+            $finish;
+        end
+    endcase
+
 end endtask
 
 //======================================
@@ -347,6 +403,8 @@ begin
             $finish;
         end
     endcase
+    modeHCG.setData('b10110);
+    _windowSize = 3;
     modeHCG.run();
     _mode = modeHCG.getOriginalData();
     _encodeMode = modeHCG.getEncodeDataWithErr();
@@ -504,6 +562,163 @@ task pass_task; begin
     $display("\033[1;0m"); 
     repeat(5) @(negedge clk);
     $finish;
+end endtask
+
+endmodule
+
+//================================================================================================================
+
+//======================================
+//
+//
+//      Determinant calculator
+//
+//
+//======================================
+
+//================================================================================================================
+module determinantCalculator #(
+    parameter MAX_SIZE_OF_MATRIX = 4,
+    parameter SIZE_OF_MATRIX = 4,
+    parameter SIZE_OF_WINDOW = 4,
+    parameter BITS_OF_MATRIX = 11
+);
+//======================================
+//      PARAMETERS & VARIABLES
+//======================================
+parameter NUM_OF_STRIDE = 1;
+parameter SIZE_OF_OUTPUT = (SIZE_OF_MATRIX - SIZE_OF_WINDOW)/NUM_OF_STRIDE + 1;
+parameter TOTAL_BITS_OF_WINDOW_2 =
+    ((BITS_OF_MATRIX*2 + 1) * 
+     ((SIZE_OF_MATRIX - 2)/NUM_OF_STRIDE + 1) * 
+     ((SIZE_OF_MATRIX - 2)/NUM_OF_STRIDE + 1));
+parameter integer BITS_OF_OUTPUT = $floor(TOTAL_BITS_OF_WINDOW_2/(SIZE_OF_OUTPUT*SIZE_OF_OUTPUT));
+
+reg signed[BITS_OF_MATRIX-1:0] _matrix[SIZE_OF_MATRIX-1:0][SIZE_OF_MATRIX-1:0];
+reg signed[BITS_OF_OUTPUT-1:0] _determinant[SIZE_OF_OUTPUT-1:0][SIZE_OF_OUTPUT-1:0];
+
+initial begin
+    $display("[Init] Create determinant calculator : %4dx%4d", SIZE_OF_WINDOW, SIZE_OF_WINDOW);
+end
+
+//
+// Setter
+//
+task setMatrix;
+    input reg signed[BITS_OF_MATRIX-1:0] _in[SIZE_OF_MATRIX-1:0][SIZE_OF_MATRIX-1:0];
+begin
+    _matrix = _in;
+end endtask
+
+//
+// Getter
+//
+function[TOTAL_BITS_OF_WINDOW_2-1:0] getDeterminant;
+    integer _row;
+    integer _col;
+begin
+    getDeterminant = 0;
+    for(_row=0 ; _row<SIZE_OF_OUTPUT ; _row=_row+1) begin
+        for(_col=0 ; _col<SIZE_OF_OUTPUT ; _col=_col+1) begin
+            getDeterminant = {getDeterminant, _determinant[_row][_col]};
+        end
+    end
+end endfunction
+
+//
+// Operation
+//
+task run;
+    integer _rowM;
+    integer _colM;
+    integer _rowW;
+    integer _colW;
+
+    integer _colExpand;
+    reg signed[BITS_OF_MATRIX-1:0] _subMatrix[MAX_SIZE_OF_MATRIX-1:0][MAX_SIZE_OF_MATRIX-1:0];
+begin
+    for(_rowM=0 ; _rowM<SIZE_OF_OUTPUT ; _rowM=_rowM+1) begin
+        for(_colM=0 ; _colM<SIZE_OF_OUTPUT ; _colM=_colM+1) begin
+            // Clear sub-matrix
+            for(_rowW=0 ; _rowW<MAX_SIZE_OF_MATRIX ; _rowW=_rowW+1) begin
+                for(_colW=0 ; _colW<MAX_SIZE_OF_MATRIX ; _colW=_colW+1) begin
+                    _subMatrix[_rowW][_colW] = 0;
+                end
+            end
+            // Set sub-matrix based on Window
+            for(_rowW=0 ; _rowW<SIZE_OF_WINDOW ; _rowW=_rowW+1) begin
+                for(_colW=0 ; _colW<SIZE_OF_WINDOW ; _colW=_colW+1) begin
+                    _subMatrix[_rowW][_colW] = _matrix[_rowM+_rowW][_colM+_colW];
+                end
+            end
+
+            _determinant[_rowM][_colM] = determinant(_subMatrix, SIZE_OF_WINDOW);
+            $display("[Run] = %6d", _determinant[_rowM][_colM]);
+        end
+    end
+end endtask
+
+function automatic signed[BITS_OF_OUTPUT-1:0] determinant;
+    input reg signed[BITS_OF_MATRIX-1:0] _inMatrix[MAX_SIZE_OF_MATRIX-1:0][MAX_SIZE_OF_MATRIX-1:0];
+    input integer _size;
+    integer _row;
+    integer _col;
+    integer _subRow;
+    integer _subCol;
+    integer _colExpand;
+    reg signed[BITS_OF_MATRIX-1:0] _subMatrix[MAX_SIZE_OF_MATRIX-1:0][MAX_SIZE_OF_MATRIX-1:0];
+begin
+    if(_size == 1) begin
+        determinant = _inMatrix[0][0];
+    end
+    else if(_size == 2) begin
+        determinant = _inMatrix[0][0] * _inMatrix[1][1] - _inMatrix[0][1] * _inMatrix[1][0];
+    end
+    else begin
+        determinant = 0;
+        // Row-expansion
+        for(_colExpand=0 ; _colExpand<_size ; _colExpand=_colExpand+1) begin
+            // Clear sub-matrix
+            for(_row=0 ; _row<MAX_SIZE_OF_MATRIX ; _row=_row+1) begin
+                for(_col=0 ; _col<MAX_SIZE_OF_MATRIX ; _col=_col+1) begin
+                    _subMatrix[_row][_col] = 0;
+                end
+            end
+
+            // Set sub-matrix based on determinant expansion
+            _subRow = 0;
+            for(_row=1 ; _row<_size ; _row=_row+1) begin
+                _subCol = 0;
+                for(_col=0 ; _col<_size ; _col=_col+1) begin
+                    if(_colExpand !== _col) begin
+                        _subMatrix[_subRow][_subCol] = _inMatrix[_row][_col];
+                        _subCol = _subCol + 1;
+                    end
+                end
+                _subRow = _subRow + 1;
+            end
+
+            // Determinant
+            determinant = determinant +
+                ((-1)**_colExpand) * _inMatrix[0][_colExpand] * determinant(_subMatrix, _size-1);
+        end
+    end
+end endfunction
+
+//
+// Display
+//
+task show_determinant;
+    integer _row;
+    integer _col;
+begin
+    for(_row=0 ; _row<SIZE_OF_OUTPUT ; _row=_row+1) begin
+        for(_col=0 ; _col<SIZE_OF_OUTPUT ; _col=_col+1) begin
+            $display("[INFO] (row, col)    : (%3d, %3d)", _row, _col);
+            $display("[INFO]    [ %d ]", _determinant[_row][_col]);
+            $display("[INFO]    [ %b ]\n", _determinant[_row][_col]);
+        end
+    end
 end endtask
 
 endmodule
