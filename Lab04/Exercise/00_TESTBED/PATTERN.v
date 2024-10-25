@@ -95,18 +95,10 @@ parameter inst_arch_type = 0;
 parameter inst_arch = 0;
 
 // PATTERN CONTROL
-integer stop;
 integer pat;
 integer exe_lat;
 integer out_lat;
-integer out_check_idx;
 integer tot_lat;
-integer input_delay;
-integer each_delay;
-
-// FILE CONTROL
-integer file;
-integer file_out;
 
 // String control
 // Should use %0s
@@ -127,6 +119,12 @@ reg[10*8:1] bkg_white_prefix  = "\033[47;1m";
 //======================================
 //      DATA MODEL
 //======================================
+// Display
+parameter DISPLAY_ELEMENT_SIZE = 3;
+parameter DISPLAY_NUM_OF_SPACE = 2;
+parameter DISPLAY_NUM_OF_SEP = 2;
+
+// Data
 parameter NUM_OF_INPUT = 1;
 parameter NUM_OF_IMAGE = 3;
 parameter SIZE_OF_IMAGE = 5;
@@ -201,6 +199,42 @@ reg  [inst_sig_width+inst_exp_width:0] _your[SIZE_OF_OUTPUT-1:0];
 //
 // Dump
 //
+//
+// Display
+//
+task fwrite_new_line;
+    input integer file;
+begin
+    $fwrite(file, "\n");
+end endtask
+
+task fwrite_seperator;
+    input integer file;
+    input integer _num;
+    integer _idx;
+    reg[(DISPLAY_ELEMENT_SIZE+DISPLAY_NUM_OF_SPACE+DISPLAY_NUM_OF_SEP)*8:1] _line; // 4 = 2 spaces with 2 "+"
+begin
+    _line = "";
+    for(_idx=1 ; _idx<=DISPLAY_ELEMENT_SIZE+2 ; _idx=_idx+1) begin
+        _line = {_line, "-"};
+    end
+    _line = {_line, "+"};
+    $fwrite(file, "+");
+    for(_idx=0 ; _idx<_num ; _idx=_idx+1) $fwrite(file, "%0s", _line);
+    $fwrite(file, "\n");
+end endtask
+
+task fwrite_element;
+    input integer file;
+    input reg[DISPLAY_ELEMENT_SIZE*8:1] _in;
+    input reg _isStart;
+    reg[(DISPLAY_ELEMENT_SIZE+DISPLAY_NUM_OF_SPACE+DISPLAY_NUM_OF_SEP)*8:1] _line;
+begin
+    _line = _isStart ? "| " : " ";
+    _line = {_line, _in};
+    _line = {_line, " |"};
+    $fwrite(file, "%0s", _line);
+end endtask
 // Input
 /*
     [#0] **1 **2 **3
@@ -213,454 +247,456 @@ reg[9*8:1] _line2  = "_________";
 reg[9*8:1] _space2 = "         ";
 task dump_input;
     input integer isHex;
+    integer file;
     integer input_idx;
     integer num_idx;
     integer col_idx;
     integer row_idx;
 begin
-    if(isHex === 1) file_out = $fopen("input_hex.txt", "w");
-    else file_out = $fopen("input_float.txt", "w");
+    if(isHex === 1) file = $fopen("input_hex.txt", "w");
+    else file = $fopen("input_float.txt", "w");
 
-    $fwrite(file_out, "[PAT NO. %4d]\n\n\n", pat);
+    $fwrite(file, "[PAT NO. %4d]\n\n\n", pat);
 
-    $fwrite(file_out, "[ Input Random Setting ]\n\n");
-    $fwrite(file_out, "[ Minimum ] : %100.10f\n", MIN_RANGE_OF_INPUT);
-    $fwrite(file_out, "[ Maximum ] : %100.10f\n\n", MAX_RANGE_OF_INPUT);
+    $fwrite(file, "[ Input Random Setting ]\n\n");
+    $fwrite(file, "[ Minimum ] : %100.10f\n", MIN_RANGE_OF_INPUT);
+    $fwrite(file, "[ Maximum ] : %100.10f\n\n", MAX_RANGE_OF_INPUT);
 
-    $fwrite(file_out, "[========]\n");
-    $fwrite(file_out, "[ Option ]\n");
-    $fwrite(file_out, "[========]\n\n");
-    $fwrite(file_out, "[ opt ] %d\n", _opt);
-    if(_opt === 'd0) $fwrite(file_out, "[ sigmoid ] [ Zero        ]\n");
-    if(_opt === 'd1) $fwrite(file_out, "[ tanh    ] [ Replication ]\n");
+    $fwrite(file, "[========]\n");
+    $fwrite(file, "[ Option ]\n");
+    $fwrite(file, "[========]\n\n");
+    $fwrite(file, "[ opt ] %d\n", _opt);
+    if(_opt === 'd0) $fwrite(file, "[ sigmoid ] [ Zero        ]\n");
+    if(_opt === 'd1) $fwrite(file, "[ tanh    ] [ Replication ]\n");
 
-    $fwrite(file_out, "\n");
-    $fwrite(file_out, "[=======]\n");
-    $fwrite(file_out, "[ Input ]\n");
-    $fwrite(file_out, "[=======]\n\n");
+    fwrite_new_line(file);
+    $fwrite(file, "[=======]\n");
+    $fwrite(file, "[ Input ]\n");
+    $fwrite(file, "[=======]\n\n");
     for(input_idx=1 ; input_idx<=NUM_OF_INPUT ; input_idx=input_idx+1) begin
-        $fwrite(file_out, "[ IMAGE #%1d ]\n\n", input_idx);
+        $fwrite(file, "[ IMAGE #%1d ]\n\n", input_idx);
         // [#0] **1 **2 **3
         for(num_idx=1 ; num_idx<=NUM_OF_IMAGE ; num_idx=num_idx+1) begin
-            $fwrite(file_out, "[%1d] ", num_idx);
-            for(col_idx=0 ; col_idx<SIZE_OF_IMAGE ; col_idx=col_idx+1) $fwrite(file_out, "%8d ",col_idx);
-            $fwrite(file_out, "%0s", _space1);
+            $fwrite(file, "[%1d] ", num_idx);
+            for(col_idx=0 ; col_idx<SIZE_OF_IMAGE ; col_idx=col_idx+1) $fwrite(file, "%8d ",col_idx);
+            $fwrite(file, "%0s", _space1);
         end
-        $fwrite(file_out, "\n");
+        fwrite_new_line(file);
         // _________________
         for(num_idx=0 ; num_idx<NUM_OF_IMAGE ; num_idx=num_idx+1) begin
-            $fwrite(file_out, "%0s", _line1);
-            for(col_idx=0 ; col_idx<SIZE_OF_IMAGE ; col_idx=col_idx+1) $fwrite(file_out, "%0s", _line2);
-            $fwrite(file_out, "%0s", _space1);
+            $fwrite(file, "%0s", _line1);
+            for(col_idx=0 ; col_idx<SIZE_OF_IMAGE ; col_idx=col_idx+1) $fwrite(file, "%0s", _line2);
+            $fwrite(file, "%0s", _space1);
         end
-        $fwrite(file_out, "\n");
+        fwrite_new_line(file);
         //   0| **1 **2 **3
         for(row_idx=0 ; row_idx<SIZE_OF_IMAGE ; row_idx=row_idx+1) begin
             for(num_idx=1 ; num_idx<=NUM_OF_IMAGE ; num_idx=num_idx+1) begin
-                $fwrite(file_out, "%2d| ",row_idx);
+                $fwrite(file, "%2d| ",row_idx);
                 for(col_idx=0 ; col_idx<SIZE_OF_IMAGE ; col_idx=col_idx+1) begin
-                    if(isHex === 1) $fwrite(file_out, "%8h ", _img[input_idx][num_idx][row_idx][col_idx]);
-                    else $fwrite(file_out, "%8.3f ", _floatBitsToReal(_img[input_idx][num_idx][row_idx][col_idx]));
+                    if(isHex === 1) $fwrite(file, "%8h ", _img[input_idx][num_idx][row_idx][col_idx]);
+                    else $fwrite(file, "%8.3f ", _floatBitsToReal(_img[input_idx][num_idx][row_idx][col_idx]));
                 end
-                $fwrite(file_out, "%0s", _space1);
+                $fwrite(file, "%0s", _space1);
             end
-            $fwrite(file_out, "\n");
+            fwrite_new_line(file);
         end
-        $fwrite(file_out, "\n");
+        fwrite_new_line(file);
     end
 
-    $fwrite(file_out, "\n");
-    $fwrite(file_out, "[========]\n");
-    $fwrite(file_out, "[ Kernel ]\n");
-    $fwrite(file_out, "[========]\n\n");
+    fwrite_new_line(file);
+    $fwrite(file, "[========]\n");
+    $fwrite(file, "[ Kernel ]\n");
+    $fwrite(file, "[========]\n\n");
     for(input_idx=1 ; input_idx<=NUM_OF_KERNEL_CH ; input_idx=input_idx+1) begin
-        $fwrite(file_out, "[channel %1d]\n\n", input_idx);
+        $fwrite(file, "[channel %1d]\n\n", input_idx);
         for(num_idx=1 ; num_idx<=NUM_OF_KERNEL ; num_idx=num_idx+1) begin
-            $fwrite(file_out, "[%1d] ", num_idx);
-            for(col_idx=0 ; col_idx<SIZE_OF_KERNEL ; col_idx=col_idx+1) $fwrite(file_out, "%8d ",col_idx);
-            $fwrite(file_out, "%0s", _space1);
+            $fwrite(file, "[%1d] ", num_idx);
+            for(col_idx=0 ; col_idx<SIZE_OF_KERNEL ; col_idx=col_idx+1) $fwrite(file, "%8d ",col_idx);
+            $fwrite(file, "%0s", _space1);
         end
-        $fwrite(file_out, "\n");
+        fwrite_new_line(file);
         // _________________
         for(num_idx=0 ; num_idx<NUM_OF_KERNEL ; num_idx=num_idx+1) begin
-            $fwrite(file_out, "%0s", _line1);
-            for(col_idx=0 ; col_idx<SIZE_OF_KERNEL ; col_idx=col_idx+1) $fwrite(file_out, "%0s", _line2);
-            $fwrite(file_out, "%0s", _space1);
+            $fwrite(file, "%0s", _line1);
+            for(col_idx=0 ; col_idx<SIZE_OF_KERNEL ; col_idx=col_idx+1) $fwrite(file, "%0s", _line2);
+            $fwrite(file, "%0s", _space1);
         end
-        $fwrite(file_out, "\n");
+        fwrite_new_line(file);
         //   0| **1 **2 **3
         for(row_idx=0 ; row_idx<SIZE_OF_KERNEL ; row_idx=row_idx+1) begin
             for(num_idx=1 ; num_idx<=NUM_OF_KERNEL ; num_idx=num_idx+1) begin
-                $fwrite(file_out, "%2d| ",row_idx);
+                $fwrite(file, "%2d| ",row_idx);
                 for(col_idx=0 ; col_idx<SIZE_OF_KERNEL ; col_idx=col_idx+1) begin
-                    if(isHex === 1) $fwrite(file_out, "%8h ", _kernel[input_idx][num_idx][row_idx][col_idx]);
-                    else $fwrite(file_out, "%8.3f ", _floatBitsToReal(_kernel[input_idx][num_idx][row_idx][col_idx]));
+                    if(isHex === 1) $fwrite(file, "%8h ", _kernel[input_idx][num_idx][row_idx][col_idx]);
+                    else $fwrite(file, "%8.3f ", _floatBitsToReal(_kernel[input_idx][num_idx][row_idx][col_idx]));
                 end
-                $fwrite(file_out, "%0s", _space1);
+                $fwrite(file, "%0s", _space1);
             end
-            $fwrite(file_out, "\n");
+            fwrite_new_line(file);
         end
-        $fwrite(file_out, "\n");
+        fwrite_new_line(file);
     end
 
-    $fwrite(file_out, "\n");
-    $fwrite(file_out, "[========]\n");
-    $fwrite(file_out, "[ Weight ]\n");
-    $fwrite(file_out, "[========]\n\n");
+    fwrite_new_line(file);
+    $fwrite(file, "[========]\n");
+    $fwrite(file, "[ Weight ]\n");
+    $fwrite(file, "[========]\n\n");
     // [#0] **1 **2 **3
-    $fwrite(file_out, "[W] ");
-    for(col_idx=0 ; col_idx<SIZE_OF_WEIGHT ; col_idx=col_idx+1) $fwrite(file_out, "%8d ",col_idx);
-    $fwrite(file_out, "%0s", _space1);
-    $fwrite(file_out, "\n");
+    $fwrite(file, "[W] ");
+    for(col_idx=0 ; col_idx<SIZE_OF_WEIGHT ; col_idx=col_idx+1) $fwrite(file, "%8d ",col_idx);
+    $fwrite(file, "%0s", _space1);
+    fwrite_new_line(file);
     // _________________
-    $fwrite(file_out, "%0s", _line1);
-    for(col_idx=0 ; col_idx<SIZE_OF_WEIGHT ; col_idx=col_idx+1) $fwrite(file_out, "%0s", _line2);
-    $fwrite(file_out, "%0s", _space1);
-    $fwrite(file_out, "\n");
+    $fwrite(file, "%0s", _line1);
+    for(col_idx=0 ; col_idx<SIZE_OF_WEIGHT ; col_idx=col_idx+1) $fwrite(file, "%0s", _line2);
+    $fwrite(file, "%0s", _space1);
+    fwrite_new_line(file);
     //   0| **1 **2 **3
     for(row_idx=1 ; row_idx<=NUM_OF_WEIGHT ; row_idx=row_idx+1) begin
-        $fwrite(file_out, "%2d| ",row_idx);
+        $fwrite(file, "%2d| ",row_idx);
         for(col_idx=0 ; col_idx<SIZE_OF_WEIGHT ; col_idx=col_idx+1) begin
-            if(isHex === 1) $fwrite(file_out, "%8h ", _weight[row_idx][col_idx]);
-            else $fwrite(file_out, "%8.3f ", _floatBitsToReal(_weight[row_idx][col_idx]));
+            if(isHex === 1) $fwrite(file, "%8h ", _weight[row_idx][col_idx]);
+            else $fwrite(file, "%8.3f ", _floatBitsToReal(_weight[row_idx][col_idx]));
         end
-        $fwrite(file_out, "%0s", _space1);
-        $fwrite(file_out, "\n");
+        $fwrite(file, "%0s", _space1);
+        fwrite_new_line(file);
     end
-    $fwrite(file_out, "\n");
+    fwrite_new_line(file);
 end endtask
 
 // Output
 task dump_output;
     input integer isHex;
+    integer file;
     integer input_idx;
     integer ch_idx;
     integer num_idx;
     integer col_idx;
     integer row_idx;
 begin
-    if(isHex === 1) file_out = $fopen("output_hex.txt", "w");
-    else file_out = $fopen("output_float.txt", "w");
+    if(isHex === 1) file = $fopen("output_hex.txt", "w");
+    else file = $fopen("output_float.txt", "w");
 
-    $fwrite(file_out, "[PAT NO. %4d]\n\n\n", pat);
+    $fwrite(file, "[PAT NO. %4d]\n\n\n", pat);
 
-    $fwrite(file_out, "[========]\n");
-    $fwrite(file_out, "[ Option ]\n");
-    $fwrite(file_out, "[========]\n\n");
-    $fwrite(file_out, "[ opt ] %d\n", _opt);
-    if(_opt === 'd0) $fwrite(file_out, "[ sigmoid ] [ Zero        ]\n");
-    if(_opt === 'd1) $fwrite(file_out, "[ tanh    ] [ Replication ]\n");
+    $fwrite(file, "[========]\n");
+    $fwrite(file, "[ Option ]\n");
+    $fwrite(file, "[========]\n\n");
+    $fwrite(file, "[ opt ] %d\n", _opt);
+    if(_opt === 'd0) $fwrite(file, "[ sigmoid ] [ Zero        ]\n");
+    if(_opt === 'd1) $fwrite(file, "[ tanh    ] [ Replication ]\n");
 
-    $fwrite(file_out, "\n");
-    $fwrite(file_out, "[=========]\n");
-    $fwrite(file_out, "[ Padding ]\n");
-    $fwrite(file_out, "[=========]\n\n");
+    fwrite_new_line(file);
+    $fwrite(file, "[=========]\n");
+    $fwrite(file, "[ Padding ]\n");
+    $fwrite(file, "[=========]\n\n");
 
     for(input_idx=1 ; input_idx<=NUM_OF_INPUT ; input_idx=input_idx+1) begin
-        $fwrite(file_out, "[ IMAGE #%1d ]\n\n", input_idx);
+        $fwrite(file, "[ IMAGE #%1d ]\n\n", input_idx);
         // [#0] **1 **2 **3
         for(num_idx=1 ; num_idx<=NUM_OF_IMAGE ; num_idx=num_idx+1) begin
-            $fwrite(file_out, "[%1d] ", num_idx);
-            for(col_idx=0 ; col_idx<SIZE_OF_PAD ; col_idx=col_idx+1) $fwrite(file_out, "%8d ",col_idx);
-            $fwrite(file_out, "%0s", _space1);
+            $fwrite(file, "[%1d] ", num_idx);
+            for(col_idx=0 ; col_idx<SIZE_OF_PAD ; col_idx=col_idx+1) $fwrite(file, "%8d ",col_idx);
+            $fwrite(file, "%0s", _space1);
         end
-        $fwrite(file_out, "\n");
+        fwrite_new_line(file);
         // _________________
         for(num_idx=0 ; num_idx<NUM_OF_IMAGE ; num_idx=num_idx+1) begin
-            $fwrite(file_out, "%0s", _line1);
-            for(col_idx=0 ; col_idx<SIZE_OF_PAD ; col_idx=col_idx+1) $fwrite(file_out, "%0s", _line2);
-            $fwrite(file_out, "%0s", _space1);
+            $fwrite(file, "%0s", _line1);
+            for(col_idx=0 ; col_idx<SIZE_OF_PAD ; col_idx=col_idx+1) $fwrite(file, "%0s", _line2);
+            $fwrite(file, "%0s", _space1);
         end
-        $fwrite(file_out, "\n");
+        fwrite_new_line(file);
         //   0| **1 **2 **3
         for(row_idx=0 ; row_idx<SIZE_OF_PAD ; row_idx=row_idx+1) begin
             for(num_idx=1 ; num_idx<=NUM_OF_IMAGE ; num_idx=num_idx+1) begin
-                $fwrite(file_out, "%2d| ",row_idx);
+                $fwrite(file, "%2d| ",row_idx);
                 for(col_idx=0 ; col_idx<SIZE_OF_PAD ; col_idx=col_idx+1) begin
-                    if(isHex === 1) $fwrite(file_out, "%8h ", _pad[input_idx][num_idx][row_idx][col_idx]);
-                    else $fwrite(file_out, "%8.3f ", _floatBitsToReal(_pad[input_idx][num_idx][row_idx][col_idx]));
+                    if(isHex === 1) $fwrite(file, "%8h ", _pad[input_idx][num_idx][row_idx][col_idx]);
+                    else $fwrite(file, "%8.3f ", _floatBitsToReal(_pad[input_idx][num_idx][row_idx][col_idx]));
                 end
-                $fwrite(file_out, "%0s", _space1);
+                $fwrite(file, "%0s", _space1);
             end
-            $fwrite(file_out, "\n");
+            fwrite_new_line(file);
         end
-        $fwrite(file_out, "\n");
+        fwrite_new_line(file);
     end
 
-    $fwrite(file_out, "\n");
-    $fwrite(file_out, "[=====================]\n");
-    $fwrite(file_out, "[ Convolution Partial ]\n");
-    $fwrite(file_out, "[=====================]\n\n");
+    fwrite_new_line(file);
+    $fwrite(file, "[=====================]\n");
+    $fwrite(file, "[ Convolution Partial ]\n");
+    $fwrite(file, "[=====================]\n\n");
     for(input_idx=1 ; input_idx<=NUM_OF_INPUT ; input_idx=input_idx+1) begin
-        $fwrite(file_out, "[ IMAGE #%1d ]\n\n", input_idx);
+        $fwrite(file, "[ IMAGE #%1d ]\n\n", input_idx);
         for(ch_idx=1 ; ch_idx<=NUM_OF_KERNEL_CH ; ch_idx=ch_idx+1 ) begin
-            $fwrite(file_out, "[kernel channel %1d]\n\n", ch_idx);
+            $fwrite(file, "[kernel channel %1d]\n\n", ch_idx);
             // [#0] **1 **2 **3
             for(num_idx=1 ; num_idx<=NUM_OF_IMAGE ; num_idx=num_idx+1) begin
-                $fwrite(file_out, "[%1d] ", num_idx);
-                for(col_idx=0 ; col_idx<SIZE_OF_CONV ; col_idx=col_idx+1) $fwrite(file_out, "%8d ",col_idx);
-                $fwrite(file_out, "%0s", _space1);
+                $fwrite(file, "[%1d] ", num_idx);
+                for(col_idx=0 ; col_idx<SIZE_OF_CONV ; col_idx=col_idx+1) $fwrite(file, "%8d ",col_idx);
+                $fwrite(file, "%0s", _space1);
             end
-            $fwrite(file_out, "\n");
+            fwrite_new_line(file);
             // _________________
             for(num_idx=0 ; num_idx<NUM_OF_IMAGE ; num_idx=num_idx+1) begin
-                $fwrite(file_out, "%0s", _line1);
-                for(col_idx=0 ; col_idx<SIZE_OF_CONV ; col_idx=col_idx+1) $fwrite(file_out, "%0s", _line2);
-                $fwrite(file_out, "%0s", _space1);
+                $fwrite(file, "%0s", _line1);
+                for(col_idx=0 ; col_idx<SIZE_OF_CONV ; col_idx=col_idx+1) $fwrite(file, "%0s", _line2);
+                $fwrite(file, "%0s", _space1);
             end
-            $fwrite(file_out, "\n");
+            fwrite_new_line(file);
             //   0| **1 **2 **3
             for(row_idx=0 ; row_idx<SIZE_OF_CONV ; row_idx=row_idx+1) begin
                 for(num_idx=1 ; num_idx<=NUM_OF_IMAGE ; num_idx=num_idx+1) begin
-                    $fwrite(file_out, "%2d| ",row_idx);
+                    $fwrite(file, "%2d| ",row_idx);
                     for(col_idx=0 ; col_idx<SIZE_OF_CONV ; col_idx=col_idx+1) begin
-                        if(isHex === 1) $fwrite(file_out, "%8h ", _conv[input_idx][ch_idx][num_idx][row_idx][col_idx]);
-                        else $fwrite(file_out, "%8.3f ", _floatBitsToReal(_conv[input_idx][ch_idx][num_idx][row_idx][col_idx]));
+                        if(isHex === 1) $fwrite(file, "%8h ", _conv[input_idx][ch_idx][num_idx][row_idx][col_idx]);
+                        else $fwrite(file, "%8.3f ", _floatBitsToReal(_conv[input_idx][ch_idx][num_idx][row_idx][col_idx]));
                     end
-                    $fwrite(file_out, "%0s", _space1);
+                    $fwrite(file, "%0s", _space1);
                 end
-                $fwrite(file_out, "\n");
+                fwrite_new_line(file);
             end
-            $fwrite(file_out, "\n");
+            fwrite_new_line(file);
         end
     end
 
-    $fwrite(file_out, "\n");
-    $fwrite(file_out, "[=================]\n");
-    $fwrite(file_out, "[ Convolution Sum ]\n");
-    $fwrite(file_out, "[=================]\n\n");
+    fwrite_new_line(file);
+    $fwrite(file, "[=================]\n");
+    $fwrite(file, "[ Convolution Sum ]\n");
+    $fwrite(file, "[=================]\n\n");
     for(input_idx=1 ; input_idx<=NUM_OF_INPUT ; input_idx=input_idx+1) begin
-        $fwrite(file_out, "[ IMAGE #%1d ]\n\n", input_idx);
+        $fwrite(file, "[ IMAGE #%1d ]\n\n", input_idx);
         for(ch_idx=1 ; ch_idx<=NUM_OF_KERNEL_CH ; ch_idx=ch_idx+1 ) begin
-            $fwrite(file_out, "[kernel channel %1d]\n\n", ch_idx);
+            $fwrite(file, "[kernel channel %1d]\n\n", ch_idx);
             // [#0] **1 **2 **3
             for(num_idx=1 ; num_idx<=1 ; num_idx=num_idx+1) begin
-                $fwrite(file_out, "[%1d] ", num_idx);
-                for(col_idx=0 ; col_idx<SIZE_OF_CONV ; col_idx=col_idx+1) $fwrite(file_out, "%8d ",col_idx);
-                $fwrite(file_out, "%0s", _space1);
+                $fwrite(file, "[%1d] ", num_idx);
+                for(col_idx=0 ; col_idx<SIZE_OF_CONV ; col_idx=col_idx+1) $fwrite(file, "%8d ",col_idx);
+                $fwrite(file, "%0s", _space1);
             end
-            $fwrite(file_out, "\n");
+            fwrite_new_line(file);
             // _________________
             for(num_idx=1 ; num_idx<=1 ; num_idx=num_idx+1) begin
-                $fwrite(file_out, "%0s", _line1);
-                for(col_idx=0 ; col_idx<SIZE_OF_CONV ; col_idx=col_idx+1) $fwrite(file_out, "%0s", _line2);
-                $fwrite(file_out, "%0s", _space1);
+                $fwrite(file, "%0s", _line1);
+                for(col_idx=0 ; col_idx<SIZE_OF_CONV ; col_idx=col_idx+1) $fwrite(file, "%0s", _line2);
+                $fwrite(file, "%0s", _space1);
             end
-            $fwrite(file_out, "\n");
+            fwrite_new_line(file);
             //   0| **1 **2 **3
             for(row_idx=0 ; row_idx<SIZE_OF_CONV ; row_idx=row_idx+1) begin
-                $fwrite(file_out, "%2d| ",row_idx);
+                $fwrite(file, "%2d| ",row_idx);
                 for(col_idx=0 ; col_idx<SIZE_OF_CONV ; col_idx=col_idx+1) begin
-                    if(isHex === 1) $fwrite(file_out, "%8h ", _convSum[input_idx][ch_idx][row_idx][col_idx]);
-                    else $fwrite(file_out, "%8.3f ", _floatBitsToReal(_convSum[input_idx][ch_idx][row_idx][col_idx]));
+                    if(isHex === 1) $fwrite(file, "%8h ", _convSum[input_idx][ch_idx][row_idx][col_idx]);
+                    else $fwrite(file, "%8.3f ", _floatBitsToReal(_convSum[input_idx][ch_idx][row_idx][col_idx]));
                 end
-                $fwrite(file_out, "\n");
+                fwrite_new_line(file);
             end
-            $fwrite(file_out, "\n");
+            fwrite_new_line(file);
         end
     end
 
-    $fwrite(file_out, "\n");
-    $fwrite(file_out, "[=============]\n");
-    $fwrite(file_out, "[ Max pooling ]\n");
-    $fwrite(file_out, "[=============]\n\n");
+    fwrite_new_line(file);
+    $fwrite(file, "[=============]\n");
+    $fwrite(file, "[ Max pooling ]\n");
+    $fwrite(file, "[=============]\n\n");
     for(input_idx=1 ; input_idx<=NUM_OF_INPUT ; input_idx=input_idx+1) begin
-        $fwrite(file_out, "[ IMAGE #%1d ]\n\n", input_idx);
+        $fwrite(file, "[ IMAGE #%1d ]\n\n", input_idx);
         for(ch_idx=1 ; ch_idx<=NUM_OF_KERNEL_CH ; ch_idx=ch_idx+1 ) begin
-            $fwrite(file_out, "[kernel channel %1d]\n\n", ch_idx);
+            $fwrite(file, "[kernel channel %1d]\n\n", ch_idx);
             // [#0] **1 **2 **3
             for(num_idx=1 ; num_idx<=1 ; num_idx=num_idx+1) begin
-                $fwrite(file_out, "[%1d] ", num_idx);
-                for(col_idx=0 ; col_idx<SIZE_OF_MAXPOOL ; col_idx=col_idx+1) $fwrite(file_out, "%8d ",col_idx);
-                $fwrite(file_out, "%0s", _space1);
+                $fwrite(file, "[%1d] ", num_idx);
+                for(col_idx=0 ; col_idx<SIZE_OF_MAXPOOL ; col_idx=col_idx+1) $fwrite(file, "%8d ",col_idx);
+                $fwrite(file, "%0s", _space1);
             end
-            $fwrite(file_out, "\n");
+            fwrite_new_line(file);
             // _________________
             for(num_idx=1 ; num_idx<=1 ; num_idx=num_idx+1) begin
-                $fwrite(file_out, "%0s", _line1);
-                for(col_idx=0 ; col_idx<SIZE_OF_MAXPOOL ; col_idx=col_idx+1) $fwrite(file_out, "%0s", _line2);
-                $fwrite(file_out, "%0s", _space1);
+                $fwrite(file, "%0s", _line1);
+                for(col_idx=0 ; col_idx<SIZE_OF_MAXPOOL ; col_idx=col_idx+1) $fwrite(file, "%0s", _line2);
+                $fwrite(file, "%0s", _space1);
             end
-            $fwrite(file_out, "\n");
+            fwrite_new_line(file);
             //   0| **1 **2 **3
             for(row_idx=0 ; row_idx<SIZE_OF_MAXPOOL ; row_idx=row_idx+1) begin
-                $fwrite(file_out, "%2d| ",row_idx);
+                $fwrite(file, "%2d| ",row_idx);
                 for(col_idx=0 ; col_idx<SIZE_OF_MAXPOOL ; col_idx=col_idx+1) begin
-                    if(isHex === 1) $fwrite(file_out, "%8h ", _maxPool[input_idx][ch_idx][row_idx][col_idx]);
-                    else $fwrite(file_out, "%8.3f ", _floatBitsToReal(_maxPool[input_idx][ch_idx][row_idx][col_idx]));
+                    if(isHex === 1) $fwrite(file, "%8h ", _maxPool[input_idx][ch_idx][row_idx][col_idx]);
+                    else $fwrite(file, "%8.3f ", _floatBitsToReal(_maxPool[input_idx][ch_idx][row_idx][col_idx]));
                 end
-                $fwrite(file_out, "\n");
+                fwrite_new_line(file);
             end
-            $fwrite(file_out, "\n");
+            fwrite_new_line(file);
         end
     end
 
-    $fwrite(file_out, "\n");
-    $fwrite(file_out, "[============]\n");
-    $fwrite(file_out, "[ Activation ]\n");
-    $fwrite(file_out, "[============]\n\n");
+    fwrite_new_line(file);
+    $fwrite(file, "[============]\n");
+    $fwrite(file, "[ Activation ]\n");
+    $fwrite(file, "[============]\n\n");
     for(input_idx=1 ; input_idx<=NUM_OF_INPUT ; input_idx=input_idx+1) begin
-        $fwrite(file_out, "[ IMAGE #%1d ]\n\n", input_idx);
+        $fwrite(file, "[ IMAGE #%1d ]\n\n", input_idx);
         for(ch_idx=1 ; ch_idx<=NUM_OF_KERNEL_CH ; ch_idx=ch_idx+1 ) begin
-            $fwrite(file_out, "[kernel channel %1d]\n\n", ch_idx);
+            $fwrite(file, "[kernel channel %1d]\n\n", ch_idx);
             // [#0] **1 **2 **3
             for(num_idx=1 ; num_idx<=1 ; num_idx=num_idx+1) begin
-                $fwrite(file_out, "[%1d] ", num_idx);
-                for(col_idx=0 ; col_idx<SIZE_OF_ACTIVATE ; col_idx=col_idx+1) $fwrite(file_out, "%8d ",col_idx);
-                $fwrite(file_out, "%0s", _space1);
+                $fwrite(file, "[%1d] ", num_idx);
+                for(col_idx=0 ; col_idx<SIZE_OF_ACTIVATE ; col_idx=col_idx+1) $fwrite(file, "%8d ",col_idx);
+                $fwrite(file, "%0s", _space1);
             end
-            $fwrite(file_out, "\n");
+            fwrite_new_line(file);
             // _________________
             for(num_idx=1 ; num_idx<=1 ; num_idx=num_idx+1) begin
-                $fwrite(file_out, "%0s", _line1);
-                for(col_idx=0 ; col_idx<SIZE_OF_ACTIVATE ; col_idx=col_idx+1) $fwrite(file_out, "%0s", _line2);
-                $fwrite(file_out, "%0s", _space1);
+                $fwrite(file, "%0s", _line1);
+                for(col_idx=0 ; col_idx<SIZE_OF_ACTIVATE ; col_idx=col_idx+1) $fwrite(file, "%0s", _line2);
+                $fwrite(file, "%0s", _space1);
             end
-            $fwrite(file_out, "\n");
+            fwrite_new_line(file);
             //   0| **1 **2 **3
             for(row_idx=0 ; row_idx<SIZE_OF_ACTIVATE ; row_idx=row_idx+1) begin
-                $fwrite(file_out, "%2d| ",row_idx);
+                $fwrite(file, "%2d| ",row_idx);
                 for(col_idx=0 ; col_idx<SIZE_OF_ACTIVATE ; col_idx=col_idx+1) begin
-                    if(isHex === 1) $fwrite(file_out, "%8h ", _activate[input_idx][ch_idx][row_idx][col_idx]);
-                    else $fwrite(file_out, "%8.3f ", _floatBitsToReal(_activate[input_idx][ch_idx][row_idx][col_idx]));
+                    if(isHex === 1) $fwrite(file, "%8h ", _activate[input_idx][ch_idx][row_idx][col_idx]);
+                    else $fwrite(file, "%8.3f ", _floatBitsToReal(_activate[input_idx][ch_idx][row_idx][col_idx]));
                 end
-                $fwrite(file_out, "\n");
+                fwrite_new_line(file);
             end
-            $fwrite(file_out, "\n");
+            fwrite_new_line(file);
         end
     end
 
-    $fwrite(file_out, "\n");
-    $fwrite(file_out, "[===============]\n");
-    $fwrite(file_out, "[ Fully Connect ]\n");
-    $fwrite(file_out, "[===============]\n\n");
+    fwrite_new_line(file);
+    $fwrite(file, "[===============]\n");
+    $fwrite(file, "[ Fully Connect ]\n");
+    $fwrite(file, "[===============]\n\n");
     // [#0] **1 **2 **3
-    $fwrite(file_out, "[W] ");
-    for(col_idx=0 ; col_idx<SIZE_OF_OUTPUT ; col_idx=col_idx+1) $fwrite(file_out, "%8d ",col_idx);
-    $fwrite(file_out, "%0s", _space1);
-    $fwrite(file_out, "\n");
+    $fwrite(file, "[W] ");
+    for(col_idx=0 ; col_idx<SIZE_OF_OUTPUT ; col_idx=col_idx+1) $fwrite(file, "%8d ",col_idx);
+    $fwrite(file, "%0s", _space1);
+    fwrite_new_line(file);
     // _________________
-    $fwrite(file_out, "%0s", _line1);
-    for(col_idx=0 ; col_idx<SIZE_OF_OUTPUT ; col_idx=col_idx+1) $fwrite(file_out, "%0s", _line2);
-    $fwrite(file_out, "%0s", _space1);
-    $fwrite(file_out, "\n");
+    $fwrite(file, "%0s", _line1);
+    for(col_idx=0 ; col_idx<SIZE_OF_OUTPUT ; col_idx=col_idx+1) $fwrite(file, "%0s", _line2);
+    $fwrite(file, "%0s", _space1);
+    fwrite_new_line(file);
     //   0| **1 **2 **3
     for(row_idx=1 ; row_idx<=NUM_OF_INPUT ; row_idx=row_idx+1) begin
-        $fwrite(file_out, "%2d| ",row_idx);
+        $fwrite(file, "%2d| ",row_idx);
         for(col_idx=0 ; col_idx<SIZE_OF_OUTPUT ; col_idx=col_idx+1) begin
-            if(isHex === 1) $fwrite(file_out, "%8h ", _fully[row_idx][col_idx]);
-            else $fwrite(file_out, "%8.3f ", _floatBitsToReal(_fully[row_idx][col_idx]));
+            if(isHex === 1) $fwrite(file, "%8h ", _fully[row_idx][col_idx]);
+            else $fwrite(file, "%8.3f ", _floatBitsToReal(_fully[row_idx][col_idx]));
         end
-        $fwrite(file_out, "%0s", _space1);
-        $fwrite(file_out, "\n");
+        $fwrite(file, "%0s", _space1);
+        fwrite_new_line(file);
     end
-    $fwrite(file_out, "\n");
+    fwrite_new_line(file);
 
-    $fwrite(file_out, "\n");
-    $fwrite(file_out, "[=========]\n");
-    $fwrite(file_out, "[ Softmax ]\n");
-    $fwrite(file_out, "[=========]\n\n");
+    fwrite_new_line(file);
+    $fwrite(file, "[=========]\n");
+    $fwrite(file, "[ Softmax ]\n");
+    $fwrite(file, "[=========]\n\n");
     // [#0] **1 **2 **3
-    $fwrite(file_out, "[W] ");
-    for(col_idx=0 ; col_idx<SIZE_OF_OUTPUT ; col_idx=col_idx+1) $fwrite(file_out, "%8d ",col_idx);
-    $fwrite(file_out, "%0s", _space1);
-    $fwrite(file_out, "\n");
+    $fwrite(file, "[W] ");
+    for(col_idx=0 ; col_idx<SIZE_OF_OUTPUT ; col_idx=col_idx+1) $fwrite(file, "%8d ",col_idx);
+    $fwrite(file, "%0s", _space1);
+    fwrite_new_line(file);
     // _________________
-    $fwrite(file_out, "%0s", _line1);
-    for(col_idx=0 ; col_idx<SIZE_OF_OUTPUT ; col_idx=col_idx+1) $fwrite(file_out, "%0s", _line2);
-    $fwrite(file_out, "%0s", _space1);
-    $fwrite(file_out, "\n");
+    $fwrite(file, "%0s", _line1);
+    for(col_idx=0 ; col_idx<SIZE_OF_OUTPUT ; col_idx=col_idx+1) $fwrite(file, "%0s", _line2);
+    $fwrite(file, "%0s", _space1);
+    fwrite_new_line(file);
     //   0| **1 **2 **3
     for(row_idx=1 ; row_idx<=NUM_OF_INPUT ; row_idx=row_idx+1) begin
-        $fwrite(file_out, "%2d| ",row_idx);
+        $fwrite(file, "%2d| ",row_idx);
         for(col_idx=0 ; col_idx<SIZE_OF_OUTPUT ; col_idx=col_idx+1) begin
-            if(isHex === 1) $fwrite(file_out, "%8h ", _softmax[row_idx][col_idx]);
-            else $fwrite(file_out, "%8.3f ", _floatBitsToReal(_softmax[row_idx][col_idx]));
+            if(isHex === 1) $fwrite(file, "%8h ", _softmax[row_idx][col_idx]);
+            else $fwrite(file, "%8.3f ", _floatBitsToReal(_softmax[row_idx][col_idx]));
         end
-        $fwrite(file_out, "%0s", _space1);
-        $fwrite(file_out, "\n");
+        $fwrite(file, "%0s", _space1);
+        fwrite_new_line(file);
     end
-    $fwrite(file_out, "\n");
+    fwrite_new_line(file);
 
-    $fwrite(file_out, "\n");
-    $fwrite(file_out, "[============]\n");
-    $fwrite(file_out, "[ Probabilty ]\n");
-    $fwrite(file_out, "[============]\n\n");
+    fwrite_new_line(file);
+    $fwrite(file, "[============]\n");
+    $fwrite(file, "[ Probabilty ]\n");
+    $fwrite(file, "[============]\n\n");
     // [#0] **1 **2 **3
-    $fwrite(file_out, "[W] ");
-    for(col_idx=0 ; col_idx<SIZE_OF_OUTPUT ; col_idx=col_idx+1) $fwrite(file_out, "%8d ",col_idx);
-    $fwrite(file_out, "%0s", _space1);
-    $fwrite(file_out, "\n");
+    $fwrite(file, "[W] ");
+    for(col_idx=0 ; col_idx<SIZE_OF_OUTPUT ; col_idx=col_idx+1) $fwrite(file, "%8d ",col_idx);
+    $fwrite(file, "%0s", _space1);
+    fwrite_new_line(file);
     // _________________
-    $fwrite(file_out, "%0s", _line1);
-    for(col_idx=0 ; col_idx<SIZE_OF_OUTPUT ; col_idx=col_idx+1) $fwrite(file_out, "%0s", _line2);
-    $fwrite(file_out, "%0s", _space1);
-    $fwrite(file_out, "\n");
+    $fwrite(file, "%0s", _line1);
+    for(col_idx=0 ; col_idx<SIZE_OF_OUTPUT ; col_idx=col_idx+1) $fwrite(file, "%0s", _line2);
+    $fwrite(file, "%0s", _space1);
+    fwrite_new_line(file);
     //   0| **1 **2 **3
     for(row_idx=1 ; row_idx<=NUM_OF_INPUT ; row_idx=row_idx+1) begin
-        $fwrite(file_out, "%2d| ",row_idx);
+        $fwrite(file, "%2d| ",row_idx);
         for(col_idx=0 ; col_idx<SIZE_OF_OUTPUT ; col_idx=col_idx+1) begin
-            if(isHex === 1) $fwrite(file_out, "%8h ", _prob[col_idx]);
-            else $fwrite(file_out, "%8.3f ", _floatBitsToReal(_prob[col_idx]));
+            if(isHex === 1) $fwrite(file, "%8h ", _prob[col_idx]);
+            else $fwrite(file, "%8.3f ", _floatBitsToReal(_prob[col_idx]));
         end
-        $fwrite(file_out, "%0s", _space1);
-        $fwrite(file_out, "\n");
+        $fwrite(file, "%0s", _space1);
+        fwrite_new_line(file);
     end
-    $fwrite(file_out, "\n");
+    fwrite_new_line(file);
 
-    $fwrite(file_out, "\n");
-    $fwrite(file_out, "[============]\n");
-    $fwrite(file_out, "[ Error Check]\n");
-    $fwrite(file_out, "[============]\n\n");
+    fwrite_new_line(file);
+    $fwrite(file, "[============]\n");
+    $fwrite(file, "[ Error Check]\n");
+    $fwrite(file, "[============]\n\n");
     for(row_idx=0 ; row_idx<5 ; row_idx=row_idx+1) begin
         // Type
         if(row_idx === 0) begin
-            $fwrite(file_out, "[Is Error or not] : %d\n", _isErr);
-            $fwrite(file_out, "[Output]\n\n");
+            $fwrite(file, "[Is Error or not] : %d\n", _isErr);
+            $fwrite(file, "[Output]\n\n");
         end
         else if(row_idx === 1) begin
-            $fwrite(file_out, "[Error rate flag] : \n");
-            $fwrite(file_out, "[Formula] : |gold - ans| / gold < %1.8f\n\n", _floatBitsToReal(_errRateAllow));
+            $fwrite(file, "[Error rate flag] : \n");
+            $fwrite(file, "[Formula] : |gold - ans| / gold < %1.8f\n\n", _floatBitsToReal(_errRateAllow));
         end
         else if(row_idx === 2) begin
-            $fwrite(file_out, "[Error rate] : |gold - ans|\n\n");
+            $fwrite(file, "[Error rate] : |gold - ans|\n\n");
         end
         else if(row_idx === 3) begin
-            $fwrite(file_out, "[Error rate] : gold * %1.8f\n\n", _floatBitsToReal(_errRateAllow));
+            $fwrite(file, "[Error rate] : gold * %1.8f\n\n", _floatBitsToReal(_errRateAllow));
         end
         else if(row_idx === 4) begin
-            $fwrite(file_out, "[Error flag] : \n");
-            $fwrite(file_out, "[Formula] : |float(ans) - float(gold)| < %1.8f\n\n", _errAllow);
+            $fwrite(file, "[Error flag] : \n");
+            $fwrite(file, "[Formula] : |float(ans) - float(gold)| < %1.8f\n\n", _errAllow);
         end
-        $fwrite(file_out, "%2d| ",row_idx);
+        $fwrite(file, "%2d| ",row_idx);
         // Value
         for(col_idx=0 ; col_idx<SIZE_OF_OUTPUT ; col_idx=col_idx+1) begin
             if(row_idx === 0) begin
-                if(isHex === 1) $fwrite(file_out, "%8h ", _your[col_idx]);
-                else $fwrite(file_out, "%12.7f ", _floatBitsToReal(_your[col_idx]));
+                if(isHex === 1) $fwrite(file, "%8h ", _your[col_idx]);
+                else $fwrite(file, "%12.7f ", _floatBitsToReal(_your[col_idx]));
             end
             // Error rate
             else if(row_idx === 1) begin
-                if(isHex === 1) $fwrite(file_out, "%8h ", _errRateFlag[col_idx]);
-                else $fwrite(file_out, "%12.7f ", _floatBitsToReal(_errRateFlag[col_idx]));
+                if(isHex === 1) $fwrite(file, "%8h ", _errRateFlag[col_idx]);
+                else $fwrite(file, "%12.7f ", _floatBitsToReal(_errRateFlag[col_idx]));
             end
             else if(row_idx === 2) begin
-                if(isHex === 1) $fwrite(file_out, "%8h ", _errDiff[col_idx]);
-                else $fwrite(file_out, "%12.7f ", _floatBitsToReal(_errDiff[col_idx]));
+                if(isHex === 1) $fwrite(file, "%8h ", _errDiff[col_idx]);
+                else $fwrite(file, "%12.7f ", _floatBitsToReal(_errDiff[col_idx]));
             end
             else if(row_idx === 3) begin
-                if(isHex === 1) $fwrite(file_out, "%8h ", _errBound[col_idx]);
-                else $fwrite(file_out, "%12.7f ", _floatBitsToReal(_errBound[col_idx]));
+                if(isHex === 1) $fwrite(file, "%8h ", _errBound[col_idx]);
+                else $fwrite(file, "%12.7f ", _floatBitsToReal(_errBound[col_idx]));
             end
             // Error
             else if(row_idx === 4) begin
-                if(isHex === 1) $fwrite(file_out, "%8h ", _errFlag[col_idx]);
-                else $fwrite(file_out, "%12.7f ", _floatBitsToReal(_errFlag[col_idx]));
+                if(isHex === 1) $fwrite(file, "%8h ", _errFlag[col_idx]);
+                else $fwrite(file, "%12.7f ", _floatBitsToReal(_errFlag[col_idx]));
             end
         end
-        $fwrite(file_out, "\n\n");
+        $fwrite(file, "\n\n");
     end
-    $fwrite(file_out, "\n");
+    fwrite_new_line(file);
     
 end endtask
 
@@ -1114,8 +1150,6 @@ end endtask
 task input_task;
     integer _cnt;
 begin
-    $display("%d", {$random(SEED)} % 10);
-    $display("%d", {$random(SEED)} % 10);
     // Randomize inupt
     randomize_input;
     // Record padding result
@@ -1215,23 +1249,23 @@ begin
     //
     _recordErrAndCheck;
     if(_isErr!==0) begin
-        // $display("[ERROR] [OUTPUT] Output err rate is over %1.8f or errr is over %1.8f", _floatBitsToReal(_errRateAllow), _errAllow);
-        // $display("[ERROR] [OUTPUT] Dump debugging file...\n");
-        // for(_errIdx=0 ; _errIdx<SIZE_OF_OUTPUT ; _errIdx=_errIdx+1) begin
-        //     $display("[ERROR] [#%1d]", _errIdx);
-        //     $display("[ERROR] Error rate check : %1d", _errRateFlag[_errIdx]);
-        //     $display("[ERROR] Error      check : %1d", _errFlag[_errIdx]);
-        //     $display("[ERROR]    Output : [%8h / %8.4f]",
-        //         _your[_errIdx], _floatBitsToReal(_your[_errIdx]));
-        //     $display("[ERROR]    Golden : [%8h / %8.4f]\n",
-        //         _prob[_errIdx], _floatBitsToReal(_prob[_errIdx]));
-        // end
-        // dump_input(0);
-        // dump_input(1);
-        // dump_output(0);
-        // dump_output(1);
-        // repeat(5) @(negedge clk);
-        // $finish;
+        $display("[ERROR] [OUTPUT] Output err rate is over %1.8f or errr is over %1.8f", _floatBitsToReal(_errRateAllow), _errAllow);
+        $display("[ERROR] [OUTPUT] Dump debugging file...\n");
+        for(_errIdx=0 ; _errIdx<SIZE_OF_OUTPUT ; _errIdx=_errIdx+1) begin
+            $display("[ERROR] [#%1d]", _errIdx);
+            $display("[ERROR] Error rate check : %1d", _errRateFlag[_errIdx]);
+            $display("[ERROR] Error      check : %1d", _errFlag[_errIdx]);
+            $display("[ERROR]    Output : [%8h / %8.4f]",
+                _your[_errIdx], _floatBitsToReal(_your[_errIdx]));
+            $display("[ERROR]    Golden : [%8h / %8.4f]\n",
+                _prob[_errIdx], _floatBitsToReal(_prob[_errIdx]));
+        end
+        dump_input(0);
+        dump_input(1);
+        dump_output(0);
+        dump_output(1);
+        repeat(5) @(negedge clk);
+        $finish;
     end
 
     tot_lat = tot_lat + exe_lat;

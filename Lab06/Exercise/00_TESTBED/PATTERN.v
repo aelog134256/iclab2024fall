@@ -651,7 +651,6 @@ begin
             end
 
             _determinant[_rowM][_colM] = determinant(_subMatrix, SIZE_OF_WINDOW);
-            $display("[Run] = %6d", _determinant[_rowM][_colM]);
         end
     end
 end endtask
