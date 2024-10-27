@@ -2,8 +2,6 @@
 
 `include "../00_TESTBED/pseudo_DRAM.v"
 
-`define DRAM_DAT_FILE_NAME "../00_TESTBED/DRAM/dram.dat"
-
 module PATTERN(
     // Input Signals
     clk,
@@ -36,12 +34,6 @@ input [7:0] out_data;
 // Can be modified by user
 integer   TOTAL_PATNUM = 10;
 // -------------------------------------
-// [Simple pattern]
-//      1. data will be range in -5~5
-//      2. There is no error 
-integer   SIMPLE_PATNUM = 10;
-// -------------------------------------
-// -------------------------------------
 // [Mode]
 //      0 : generate the simple dram.dat
 //      1 : generate the regular dram.dat
@@ -49,7 +41,9 @@ integer   SIMPLE_PATNUM = 10;
 integer   MODE = 2;
 // -------------------------------------
 integer   SEED = 5487;
-parameter DEBUG = 0;
+parameter DEBUG = 1;
+parameter DRAMDAT_TO_GENERATED = "../00_TESTBED/DRAM/dram.dat";
+parameter DRAMDAT_FROM_DRAM = `d_DRAM_p_r;
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 parameter CYCLE = `CYCLE_TIME;
 parameter DELAY = 20000;
@@ -86,17 +80,22 @@ parameter NUM_OF_RATIO = 4;
 parameter NUM_OF_PIC = 16;
 parameter NUM_OF_CHANNEL = 3; // (R, G, B)
 parameter SIZE_OF_PIC = 32;
+parameter NUM_OF_CONTRASTS = 3;
 parameter START_OF_DRAM_ADDRESS = 65536;
 parameter BITS_OF_PIXEL = 8;
-// Dump
-parameter DUMP_ELEMENT_SIZE = 4;
-parameter DUMP_NUM_OF_SPACE = 2;
-parameter DUMP_NUM_OF_SEP = 2;
 // Data
 reg[BITS_OF_PIXEL-1:0] _image[NUM_OF_PIC-1:0][NUM_OF_CHANNEL-1:0][SIZE_OF_PIC-1:0][SIZE_OF_PIC-1:0];
+parameter real _grayscaleRatio[NUM_OF_CHANNEL-1:0] = {0.25, 0.5, 0.25};
 integer _noPic;
 integer _mode;
-integer _ratio;
+parameter real _ratio[NUM_OF_RATIO-1:0] = {2, 1, 0.5, 0.25};
+integer _ratioMode;
+// Mode 0
+// Contrast
+parameter integer _constrast[NUM_OF_CONTRASTS-1:0] = {6, 4, 2};
+integer _focusWindow[NUM_OF_CONTRASTS-1:0][_constrast[NUM_OF_CONTRASTS-1]-1:0][_constrast[NUM_OF_CONTRASTS-1]-1:0];
+integer _focusDiffVertical;
+integer _focusDiffHorizontal;
 
 //
 // Load
@@ -111,9 +110,9 @@ task load_pic_from_dram;
     integer _row;
     integer _col;
 begin
-    file = $fopen(`d_DRAM_p_r, "r");
+    file = $fopen(DRAMDAT_FROM_DRAM, "r");
     if (file == 0) begin
-        $display("[ERROR] [FILE] The file (%0s) can't be opened", `d_DRAM_p_r);
+        $display("[ERROR] [FILE] The file (%0s) can't be opened", DRAMDAT_FROM_DRAM);
         $finish;
     end
     _cnt = 0;
@@ -139,48 +138,162 @@ begin
 end endtask
 
 //
+// Operation
+//
+task auto_focus;
+    integer _crst;
+    integer _ch;
+    integer _row;
+    integer _col;
+
+    parameter PIC_MID = SIZE_OF_PIC/2;
+begin
+    // Clear winwo
+    for(_ch=0 ; _ch<NUM_OF_CHANNEL ; _ch=_ch+1) begin
+        for(_row=0 ; _row<SIZE_OF_PIC ; _row=_row+1) begin
+            for(_col=0 ; _col<SIZE_OF_PIC ; _col=_col+1) begin
+                _focusWindow[_ch][_row][_col] = 0;
+            end
+        end
+    end
+    
+end endtask
+
+task auto_exposure; begin
+    
+end endtask
+
+//
 // Dump
 //
-task fwrite_new_line;
-    input integer file;
-begin
-    $fwrite(file, "\n");
-end endtask
+parameter DUMP_OPT_PIXEL = 12;
+parameter DUMP_SIZE_PIXEL = 4;
+dumper #(.DUMP_ELEMENT_SIZE(DUMP_OPT_PIXEL)) optDumper();
+dumper #(.DUMP_ELEMENT_SIZE(DUMP_SIZE_PIXEL)) pixelDumper();
 
-task fwrite_seperator;
-    input integer file;
-    input integer _num;
-    integer _idx;
-    reg[(DUMP_ELEMENT_SIZE+DUMP_NUM_OF_SPACE+DUMP_NUM_OF_SEP)*8:1] _line; // 4 = 2 spaces with 2 "+"
+task clear_dump_file;
+    integer file;
 begin
-    _line = "";
-    for(_idx=1 ; _idx<=DUMP_ELEMENT_SIZE+2 ; _idx=_idx+1) begin
-        _line = {_line, "-"};
-    end
-    _line = {_line, "+"};
-    $fwrite(file, "+");
-    for(_idx=0 ; _idx<_num ; _idx=_idx+1) $fwrite(file, "%0s", _line);
-    $fwrite(file, "\n");
-end endtask
-
-task fwrite_element;
-    input integer file;
-    input reg[DUMP_ELEMENT_SIZE*8:1] _in;
-    input reg _isStart;
-    reg[(DUMP_ELEMENT_SIZE+DUMP_NUM_OF_SPACE+DUMP_NUM_OF_SEP)*8:1] _line;
-begin
-    _line = _isStart ? "| " : " ";
-    _line = {_line, _in};
-    _line = {_line, " |"};
-    $fwrite(file, "%0s", _line);
+    file = $fopen("image.txt", "w");
+    $fclose(file);
+    file = $fopen("auto_focus.txt", "w");
+    $fclose(file);
+    file = $fopen("auto_exposure.txt", "w");
+    $fclose(file);
 end endtask
 
 task dump_image;
+    integer file;
+    integer _ch;
+    integer _row;
+    integer _col;
+
+    reg[DUMP_OPT_PIXEL*8:1] _strOpt;
+    reg[DUMP_SIZE_PIXEL*8:1] _strPixel;
+    
+begin
+    file = $fopen("image.txt", "w");
+    // Operation
+    optDumper.addSeperator(file, 2);
+    optDumper.addCell(file, "Pat No.", "s", 1);
+    optDumper.addCell(file,    pat, "d", 0);
+    optDumper.addLine(file);
+    optDumper.addSeperator(file, 2);
+    optDumper.addCell(file, "Pic No.", "s", 1);
+    optDumper.addCell(file,    _noPic, "d", 0);
+    optDumper.addLine(file);
+    optDumper.addCell(file, "Mode", "s", 1);
+    optDumper.addCell(file,  _mode, "d", 0);
+    optDumper.addLine(file);
+    if(_mode == 1) begin
+        optDumper.addCell(file, "Ratio Mode", "s", 1);
+        optDumper.addCell(file,   _ratioMode, "d", 0);
+        optDumper.addLine(file);
+        optDumper.addCell(file, "Ratio Value", "s", 1);
+        $sformat(_strOpt, "%12.3f", _ratio[_ratioMode]);
+        optDumper.addCell(file, _strOpt, "s", 0);
+        optDumper.addLine(file);
+    end
+    optDumper.addSeperator(file, 2);
+    optDumper.addLine(file);
+
+    // Image
+    for(_ch=0 ; _ch<NUM_OF_CHANNEL ; _ch=_ch+1) begin
+        // RGB
+        pixelDumper.addSeperator(file, SIZE_OF_PIC+1);
+        case(_ch)
+            'd0:pixelDumper.addCell(file, "R-0", "s", 1);
+            'd1:pixelDumper.addCell(file, "G-1", "s", 1);
+            'd2:pixelDumper.addCell(file, "B-2", "s", 1);
+        endcase
+        // Column index
+        for(_col=0 ; _col<SIZE_OF_PIC ; _col=_col+1) begin
+            pixelDumper.addCell(file, _col, "d", 0);
+        end
+        optDumper.addLine(file);
+        pixelDumper.addSeperator(file, SIZE_OF_PIC+1);
+        // Row index & pixel
+        for(_row=0 ; _row<SIZE_OF_PIC ; _row=_row+1) begin
+            // Row index
+            pixelDumper.addCell(file, _row, "d", 1);
+            // Pixel
+            for(_col=0 ; _col<SIZE_OF_PIC ; _col=_col+1) begin
+                pixelDumper.addCell(file, _image[_noPic][_ch][_row][_col], "d", 0);
+            end
+            optDumper.addLine(file);
+        end
+        pixelDumper.addSeperator(file, SIZE_OF_PIC+1);
+        optDumper.addLine(file);
+    end
+    $fclose(file);
+end endtask
+
+task dump_focus;
+    integer file;
+    integer _ch;
+    integer _row;
+    integer _col;
+    reg[DUMP_SIZE_PIXEL*8:1] _strPixel;
+begin
+    file = $fopen("auto_focus.txt", "w");
+    $fwrite(file, "[ Focus Window ]\n\n");
+    // Focus window
+    for(_ch=0 ; _ch<NUM_OF_CONTRASTS ; _ch=_ch+1) begin
+        // Focus size
+        $fwrite(file, "[ #%2d ]\n", _ch);
+        pixelDumper.addSeperator(file, _constrast[_ch]+1);
+        $sformat(_strPixel, "%1d*%1d", _constrast[_ch], _constrast[_ch]);
+        pixelDumper.addCell(file, _strPixel, "s", 1);
+        // Column index
+        for(_col=0 ; _col<_constrast[_ch] ; _col=_col+1) begin
+            pixelDumper.addCell(file, _col, "d", 0);
+        end
+        optDumper.addLine(file);
+        pixelDumper.addSeperator(file, _constrast[_ch]+1);
+        // Row index & pixel
+        for(_row=0 ; _row<_constrast[_ch] ; _row=_row+1) begin
+            // Row index
+            pixelDumper.addCell(file, _row, "d", 1);
+            // Pixel
+            for(_col=0 ; _col<_constrast[_ch] ; _col=_col+1) begin
+                pixelDumper.addCell(file, _focusWindow[_ch][_row][_col], "d", 0);
+            end
+            optDumper.addLine(file);
+        end
+        pixelDumper.addSeperator(file, _constrast[_ch]+1);
+        optDumper.addLine(file);
+    end
+    $fclose(file);
+end endtask
+
+task dump_exposure;
+    integer file;
     integer _ch;
     integer _row;
     integer _col;
 begin
-
+    file = $fopen("auto_exposure.txt", "w");
+    $fclose(file);
 end endtask
 
 //======================================
@@ -216,9 +329,9 @@ task generate_dram_task;
     integer _col;
 begin
     $display("[Info] Start to generate dram.dat");
-    file = $fopen(`DRAM_DAT_FILE_NAME, "w");
+    file = $fopen(DRAMDAT_TO_GENERATED, "w");
     if (file == 0) begin
-        $display("[ERROR] [FILE] The file (%0s) can't be opened", `DRAM_DAT_FILE_NAME);
+        $display("[ERROR] [FILE] The file (%0s) can't be opened", DRAMDAT_TO_GENERATED);
         $finish;
     end
     for(_pic=0 ; _pic<NUM_OF_PIC ; _pic=_pic+1) begin
@@ -277,12 +390,12 @@ task input_task; begin
     repeat(2) @(negedge clk);
     _noPic = {$random(SEED)} % NUM_OF_PIC;
     _mode = {$random(SEED)} % NUM_OF_MODE;
-    _ratio = (_mode == 1) ? {$random(SEED)} % NUM_OF_RATIO : 'dx;
+    _ratioMode = (_mode == 1) ? {$random(SEED)} % NUM_OF_RATIO : 'dx;
 
     in_valid = 1;
     in_pic_no = _noPic;
     in_mode = _mode;
-    in_ratio_mode = (_mode == 1) ? _ratio : 'dx;
+    in_ratio_mode = (_mode == 1) ? _ratioMode : 'dx;
     @(negedge clk);
     in_valid = 0;
     in_pic_no = 'dx;
@@ -290,7 +403,22 @@ task input_task; begin
     in_ratio_mode = 'dx;
 end endtask
 
-task cal_task; begin
+task cal_task;
+    integer size;
+begin
+    case(_mode)
+        'd0: auto_focus;
+        'd1: auto_exposure;
+        default: begin
+            $display("[ERROR] [CAL] The mode (%2d) is no valid", _mode);
+            $finish;
+        end
+    endcase
+    if(DEBUG) begin
+        dump_image;
+        dump_focus;
+        dump_exposure;
+    end
 end endtask
 
 task wait_task; begin
@@ -397,5 +525,75 @@ task pass_task; begin
     repeat(5) @(negedge clk);
     $finish;
 end endtask
+
+endmodule
+
+module dumper #(
+    parameter DUMP_ELEMENT_SIZE = 4
+);
+
+// Dump
+parameter DUMP_NUM_OF_SPACE = 2;
+parameter DUMP_NUM_OF_SEP = 2;
+parameter SIZE_OF_BUFFER = 256;
+
+task addLine;
+    input integer file;
+begin
+    $fwrite(file, "\n");
+end endtask
+
+task addSeperator;
+    input integer file;
+    input integer _num;
+    integer _idx;
+    reg[(DUMP_ELEMENT_SIZE+DUMP_NUM_OF_SPACE+DUMP_NUM_OF_SEP)*8:1] _line; // 4 = 2 spaces with 2 "+"
+begin
+    _line = "";
+    for(_idx=1 ; _idx<=DUMP_ELEMENT_SIZE+2 ; _idx=_idx+1) begin
+        _line = {_line, "-"};
+    end
+    _line = {_line, "+"};
+    $fwrite(file, "+");
+    for(_idx=0 ; _idx<_num ; _idx=_idx+1) $fwrite(file, "%0s", _line);
+    $fwrite(file, "\n");
+end endtask
+
+// TODO
+// Only support %d %s
+// Should consider the %f ex : %8.3f, %12.1f
+task addCell;
+    input integer file;
+    input reg[DUMP_ELEMENT_SIZE*8:1] _in;
+    input reg[8:1] _type;
+    input reg _isStart;
+    reg[SIZE_OF_BUFFER*8:1] _format;
+    reg[DUMP_ELEMENT_SIZE*8:1] _inFormat;
+    reg[(DUMP_ELEMENT_SIZE+DUMP_NUM_OF_SPACE+DUMP_NUM_OF_SEP)*8:1] _line;
+begin
+    // Format
+    $sformat(_format, "%%%-d", DUMP_ELEMENT_SIZE);
+    _format = {_format[(SIZE_OF_BUFFER-1)*8:1], _type};
+    $sformat(_inFormat, _format, _in);
+    // Output
+    _line = _isStart ? "| " : " ";
+    _line = {_line, _inFormat};
+    _line = {_line, " |"};
+    $fwrite(file, "%0s", _line);
+end endtask
+
+// task addCellUnformat;
+//     input integer file;
+//     input reg[DUMP_ELEMENT_SIZE*8:1] _in;
+//     input reg _isStart;
+//     reg[SIZE_OF_BUFFER*8:1] _format;
+//     reg[DUMP_ELEMENT_SIZE*8:1] _inFormat;
+//     reg[(DUMP_ELEMENT_SIZE+DUMP_NUM_OF_SPACE+DUMP_NUM_OF_SEP)*8:1] _line;
+// begin
+//     _line = _isStart ? "| " : " ";
+//     _line = {_line, _in};
+//     _line = {_line, " |"};
+//     $fwrite(file, "%0s", _line);
+// end endtask
 
 endmodule
