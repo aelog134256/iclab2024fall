@@ -85,21 +85,23 @@ parameter START_OF_DRAM_ADDRESS = 65536;
 parameter BITS_OF_PIXEL = 8;
 // Data
 reg[BITS_OF_PIXEL-1:0] _image[NUM_OF_PIC-1:0][NUM_OF_CHANNEL-1:0][SIZE_OF_PIC-1:0][SIZE_OF_PIC-1:0];
+reg[BITS_OF_PIXEL-1:0] _originalImage[NUM_OF_CHANNEL-1:0][SIZE_OF_PIC-1:0][SIZE_OF_PIC-1:0];
 parameter real _grayscaleRatio[NUM_OF_CHANNEL-1:0] = {0.25, 0.5, 0.25};
 integer _noPic;
 integer _mode;
 parameter real _ratio[NUM_OF_RATIO-1:0] = {2, 1, 0.5, 0.25};
 integer _ratioMode;
 // Mode 0
-// Contrast
-parameter integer _constrast[NUM_OF_CONTRASTS-1:0] = {6, 4, 2};
+parameter integer _constrast[NUM_OF_CONTRASTS-1:0] = {6, 4, 2}; // Contrast
 parameter MAX_SIZE_OF_CONTRASTS = _constrast[NUM_OF_CONTRASTS-1];
 integer _focusWindow[NUM_OF_CONTRASTS-1:0][NUM_OF_CHANNEL-1:0][MAX_SIZE_OF_CONTRASTS-1:0][MAX_SIZE_OF_CONTRASTS-1:0];
-integer _focusGrayscale[NUM_OF_CONTRASTS-1:0][MAX_SIZE_OF_CONTRASTS-1:0][MAX_SIZE_OF_CONTRASTS-1:0];
+integer _focusGrayWindow[NUM_OF_CONTRASTS-1:0][MAX_SIZE_OF_CONTRASTS-1:0][MAX_SIZE_OF_CONTRASTS-1:0];
 integer _focusDiffHorizontal[NUM_OF_CONTRASTS-1:0];
 integer _focusDiffVertical[NUM_OF_CONTRASTS-1:0];
 integer _focusNormalizedDiff[NUM_OF_CONTRASTS-1:0];
 integer _maxContrast;
+// Mode 1
+integer _exposureGrayscale;
 
 //
 // Load
@@ -142,6 +144,23 @@ begin
 end endtask
 
 //
+// Setter
+//
+task record_original_image;
+    integer _ch;
+    integer _row;
+    integer _col;
+begin
+    for(_ch=0 ; _ch<NUM_OF_CHANNEL ; _ch=_ch+1) begin
+        for(_row=0 ; _row<SIZE_OF_PIC ; _row=_row+1) begin
+            for(_col=0 ; _col<SIZE_OF_PIC ; _col=_col+1) begin
+                _originalImage[_ch][_row][_col] = _image[_noPic][_ch][_row][_col];
+            end
+        end
+    end
+end endtask
+
+//
 // Operation
 //
 task auto_focus;
@@ -166,7 +185,7 @@ begin
         end
         for(_row=0 ; _row<MAX_SIZE_OF_CONTRASTS ; _row=_row+1) begin
             for(_col=0 ; _col<MAX_SIZE_OF_CONTRASTS ; _col=_col+1) begin
-                _focusGrayscale[_crst][_row][_col] = 0;
+                _focusGrayWindow[_crst][_row][_col] = 0;
             end
         end
         //
@@ -176,15 +195,15 @@ begin
             for(_row=0 ; _row<_constrast[_crst] ; _row=_row+1) begin
                 for(_col=0 ; _col<_constrast[_crst] ; _col=_col+1) begin
                     _focusWindow[_crst][_ch][_row][_col] = 
-                        _image[_noPic][_ch][PIC_MID-_constrast[_crst]/2+1+_row][PIC_MID-_constrast[_crst]/2+1+_col];
+                        _originalImage[_ch][PIC_MID-_constrast[_crst]/2+1+_row][PIC_MID-_constrast[_crst]/2+1+_col];
                 end
             end
         end
         for(_row=0 ; _row<_constrast[_crst] ; _row=_row+1) begin
             for(_col=0 ; _col<_constrast[_crst] ; _col=_col+1) begin
                 for(_ch=0 ; _ch<NUM_OF_CHANNEL ; _ch=_ch+1) begin
-                    _focusGrayscale[_crst][_row][_col] =
-                        _focusGrayscale[_crst][_row][_col] +
+                    _focusGrayWindow[_crst][_row][_col] =
+                        _focusGrayWindow[_crst][_row][_col] +
                         _focusWindow[_crst][_ch][_row][_col] * _grayscaleRatio[_ch];
                 end
             end
@@ -199,9 +218,9 @@ begin
         for(_row=0 ; _row<_constrast[_crst] ; _row=_row+1) begin
             for(_col=0 ; _col<_constrast[_crst]-1 ; _col=_col+1) begin
                 temp =
-                    (_focusGrayscale[_crst][_row][_col]   - _focusGrayscale[_crst][_row][_col+1]) > 0 ?
-                    (_focusGrayscale[_crst][_row][_col]   - _focusGrayscale[_crst][_row][_col+1]) :
-                    (_focusGrayscale[_crst][_row][_col+1] - _focusGrayscale[_crst][_row][_col]);
+                    (_focusGrayWindow[_crst][_row][_col]   - _focusGrayWindow[_crst][_row][_col+1]) > 0 ?
+                    (_focusGrayWindow[_crst][_row][_col]   - _focusGrayWindow[_crst][_row][_col+1]) :
+                    (_focusGrayWindow[_crst][_row][_col+1] - _focusGrayWindow[_crst][_row][_col]);
                 _focusDiffVertical[_crst] = 
                     _focusDiffVertical[_crst] + temp;
             end
@@ -210,9 +229,9 @@ begin
         for(_col=0 ; _col<_constrast[_crst] ; _col=_col+1) begin
             for(_row=0 ; _row<_constrast[_crst]-1 ; _row=_row+1) begin
                 temp =
-                    (_focusGrayscale[_crst][_row+1][_col] - _focusGrayscale[_crst][_row][_col]) > 0 ?
-                    (_focusGrayscale[_crst][_row+1][_col] - _focusGrayscale[_crst][_row][_col]) :
-                    (_focusGrayscale[_crst][_row][_col]   - _focusGrayscale[_crst][_row+1][_col]);
+                    (_focusGrayWindow[_crst][_row+1][_col] - _focusGrayWindow[_crst][_row][_col]) > 0 ?
+                    (_focusGrayWindow[_crst][_row+1][_col] - _focusGrayWindow[_crst][_row][_col]) :
+                    (_focusGrayWindow[_crst][_row][_col]   - _focusGrayWindow[_crst][_row+1][_col]);
                 _focusDiffHorizontal[_crst] = 
                     _focusDiffHorizontal[_crst] + temp;
             end
@@ -236,8 +255,38 @@ begin
     end
 end endtask
 
-task auto_exposure; begin
-    
+task auto_exposure;
+    integer _ch;
+    integer _row;
+    integer _col;
+    integer temp;
+begin
+    //
+    // Adjust
+    //
+    for(_ch=0 ; _ch<NUM_OF_CHANNEL ; _ch=_ch+1) begin
+        for(_row=0 ; _row<SIZE_OF_PIC ; _row=_row+1) begin
+            for(_col=0 ; _col<SIZE_OF_PIC ; _col=_col+1) begin
+                temp = _originalImage[_ch][_row][_col] * _ratio[_ratioMode];
+                _image[_noPic][_ch][_row][_col] = 
+                    (temp >= (2**BITS_OF_PIXEL - 1)) ? 
+                        (2**BITS_OF_PIXEL - 1) : temp;
+            end
+        end
+    end
+    //
+    // Average grayscale
+    //
+    _exposureGrayscale = 0;
+    for(_row=0 ; _row<SIZE_OF_PIC ; _row=_row+1) begin
+        for(_col=0 ; _col<SIZE_OF_PIC ; _col=_col+1) begin
+            for(_ch=0 ; _ch<NUM_OF_CHANNEL ; _ch=_ch+1) begin
+                _exposureGrayscale = _exposureGrayscale +
+                    _image[_noPic][_ch][_row][_col] * _grayscaleRatio[_ch];
+            end
+        end
+    end
+    _exposureGrayscale = _exposureGrayscale/(SIZE_OF_PIC*SIZE_OF_PIC);
 end endtask
 
 //
@@ -259,7 +308,7 @@ begin
     $fclose(file);
 end endtask
 
-task dump_image;
+task dump_original_image;
     integer file;
     integer _ch;
     integer _row;
@@ -269,7 +318,7 @@ task dump_image;
     reg[DUMP_SIZE_PIXEL*8:1] _strPixel;
     
 begin
-    file = $fopen("image.txt", "w");
+    file = $fopen("image_original.txt", "w");
     // Operation
     optDumper.addSeperator(file, 2);
     optDumper.addCell(file, "Pat No.", "s", 1);
@@ -315,6 +364,79 @@ begin
             pixelDumper.addCell(file, _row, "d", 1);
             // Pixel
             for(_col=0 ; _col<SIZE_OF_PIC ; _col=_col+1) begin
+                pixelDumper.addCell(file, _originalImage[_ch][_row][_col], "d", 0);
+            end
+            optDumper.addLine(file);
+        end
+        pixelDumper.addSeperator(file, SIZE_OF_PIC+1);
+        optDumper.addLine(file);
+    end
+    $fclose(file);
+end endtask
+
+task dump_adjusted_image;
+    integer file;
+    integer _ch;
+    integer _row;
+    integer _col;
+
+    reg[DUMP_OPT_PIXEL*8:1] _strOpt;
+    reg[DUMP_SIZE_PIXEL*8:1] _strPixel;
+    
+begin
+    file = $fopen("image_adjusted.txt", "w");
+    // Operation
+    optDumper.addSeperator(file, 2);
+    optDumper.addCell(file, "Pat No.", "s", 1);
+    optDumper.addCell(file,    pat, "d", 0);
+    optDumper.addLine(file);
+    optDumper.addSeperator(file, 2);
+    optDumper.addCell(file, "Pic No.", "s", 1);
+    optDumper.addCell(file,    _noPic, "d", 0);
+    optDumper.addLine(file);
+    optDumper.addCell(file, "Mode", "s", 1);
+    optDumper.addCell(file,  _mode, "d", 0);
+    optDumper.addLine(file);
+    if(_mode == 1) begin
+        optDumper.addCell(file, "Ratio Mode", "s", 1);
+        optDumper.addCell(file,   _ratioMode, "d", 0);
+        optDumper.addLine(file);
+        optDumper.addCell(file, "Ratio Value", "s", 1);
+        $sformat(_strOpt, "%12.3f", _ratio[_ratioMode]);
+        optDumper.addCell(file, _strOpt, "s", 0);
+        optDumper.addLine(file);
+    end
+    optDumper.addSeperator(file, 2);
+    optDumper.addLine(file);
+
+    // Image
+    for(_ch=0 ; _ch<NUM_OF_CHANNEL ; _ch=_ch+1) begin
+        // RGB
+        pixelDumper.addSeperator(file, SIZE_OF_PIC+1);
+        case(_ch)
+            'd0:pixelDumper.addCell(file, "R-0", "s", 1);
+            'd1:pixelDumper.addCell(file, "G-1", "s", 1);
+            'd2:pixelDumper.addCell(file, "B-2", "s", 1);
+        endcase
+        // Column index
+        for(_col=0 ; _col<SIZE_OF_PIC ; _col=_col+1) begin
+            pixelDumper.addCell(file, _col, "d", 0);
+        end
+        optDumper.addLine(file);
+        pixelDumper.addSeperator(file, SIZE_OF_PIC+1);
+        // Row index & pixel
+        for(_row=0 ; _row<SIZE_OF_PIC ; _row=_row+1) begin
+            // Row index
+            pixelDumper.addCell(file, _row, "d", 1);
+            // Pixel
+            for(_col=0 ; _col<SIZE_OF_PIC ; _col=_col+1) begin
+                // if(_image[_noPic][_ch][_row][_col] !== _originalImage[_ch][_row][_col]) begin
+                //     $sformat(_strPixel, "*%3d", _image[_noPic][_ch][_row][_col]);
+                // end
+                // else begin
+                //     $sformat(_strPixel, "%3d", _image[_noPic][_ch][_row][_col]);
+                // end
+                // pixelDumper.addCell(file, _strPixel, "s", 0);
                 pixelDumper.addCell(file, _image[_noPic][_ch][_row][_col], "d", 0);
             end
             optDumper.addLine(file);
@@ -389,7 +511,7 @@ begin
             pixelDumper.addCell(file, _row, "d", 1);
             // Pixel
             for(_col=0 ; _col<_constrast[_crst] ; _col=_col+1) begin
-                pixelDumper.addCell(file, _focusGrayscale[_crst][_row][_col], "d", 0);
+                pixelDumper.addCell(file, _focusGrayWindow[_crst][_row][_col], "d", 0);
             end
             optDumper.addLine(file);
         end
@@ -414,6 +536,7 @@ task dump_exposure;
     integer _col;
 begin
     file = $fopen("auto_exposure.txt", "w");
+    $fwrite(file, "[ Exposure grayscale ] : %-10d\n", _exposureGrayscale);
     $fclose(file);
 end endtask
 
@@ -510,7 +633,7 @@ end endtask
 task input_task; begin
     repeat(2) @(negedge clk);
     _noPic = {$random(SEED)} % NUM_OF_PIC;
-    _mode = {$random(SEED)} % NUM_OF_MODE;
+    _mode = 1;//{$random(SEED)} % NUM_OF_MODE;
     _ratioMode = (_mode == 1) ? {$random(SEED)} % NUM_OF_RATIO : 'dx;
 
     in_valid = 1;
@@ -527,6 +650,7 @@ end endtask
 task cal_task;
     integer size;
 begin
+    record_original_image;
     case(_mode)
         'd0: auto_focus;
         'd1: auto_exposure;
@@ -537,7 +661,8 @@ begin
     endcase
     if(DEBUG) begin
         clear_dump_file;
-        dump_image;
+        dump_original_image;
+        dump_adjusted_image;
         dump_focus;
         dump_exposure;
     end
