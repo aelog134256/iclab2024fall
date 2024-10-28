@@ -633,7 +633,7 @@ end endtask
 task input_task; begin
     repeat(2) @(negedge clk);
     _noPic = {$random(SEED)} % NUM_OF_PIC;
-    _mode = 1;//{$random(SEED)} % NUM_OF_MODE;
+    _mode = {$random(SEED)} % NUM_OF_MODE;
     _ratioMode = (_mode == 1) ? {$random(SEED)} % NUM_OF_RATIO : 'dx;
 
     in_valid = 1;
