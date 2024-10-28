@@ -93,9 +93,13 @@ integer _ratioMode;
 // Mode 0
 // Contrast
 parameter integer _constrast[NUM_OF_CONTRASTS-1:0] = {6, 4, 2};
-integer _focusWindow[NUM_OF_CONTRASTS-1:0][_constrast[NUM_OF_CONTRASTS-1]-1:0][_constrast[NUM_OF_CONTRASTS-1]-1:0];
-integer _focusDiffVertical;
-integer _focusDiffHorizontal;
+parameter MAX_SIZE_OF_CONTRASTS = _constrast[NUM_OF_CONTRASTS-1];
+integer _focusWindow[NUM_OF_CONTRASTS-1:0][NUM_OF_CHANNEL-1:0][MAX_SIZE_OF_CONTRASTS-1:0][MAX_SIZE_OF_CONTRASTS-1:0];
+integer _focusGrayscale[NUM_OF_CONTRASTS-1:0][MAX_SIZE_OF_CONTRASTS-1:0][MAX_SIZE_OF_CONTRASTS-1:0];
+integer _focusDiffHorizontal[NUM_OF_CONTRASTS-1:0];
+integer _focusDiffVertical[NUM_OF_CONTRASTS-1:0];
+integer _focusNormalizedDiff[NUM_OF_CONTRASTS-1:0];
+integer _maxContrast;
 
 //
 // Load
@@ -146,17 +150,90 @@ task auto_focus;
     integer _row;
     integer _col;
 
+    integer temp;
     parameter PIC_MID = SIZE_OF_PIC/2;
 begin
-    // Clear winwo
-    for(_ch=0 ; _ch<NUM_OF_CHANNEL ; _ch=_ch+1) begin
-        for(_row=0 ; _row<SIZE_OF_PIC ; _row=_row+1) begin
-            for(_col=0 ; _col<SIZE_OF_PIC ; _col=_col+1) begin
-                _focusWindow[_ch][_row][_col] = 0;
+    for(_crst=0 ; _crst<NUM_OF_CONTRASTS ; _crst=_crst+1) begin
+        //
+        // Clear window
+        //
+        for(_ch=0 ; _ch<NUM_OF_CHANNEL ; _ch=_ch+1) begin
+            for(_row=0 ; _row<MAX_SIZE_OF_CONTRASTS ; _row=_row+1) begin
+                for(_col=0 ; _col<MAX_SIZE_OF_CONTRASTS ; _col=_col+1) begin
+                    _focusWindow[_crst][_ch][_row][_col] = 0;
+                end
             end
         end
+        for(_row=0 ; _row<MAX_SIZE_OF_CONTRASTS ; _row=_row+1) begin
+            for(_col=0 ; _col<MAX_SIZE_OF_CONTRASTS ; _col=_col+1) begin
+                _focusGrayscale[_crst][_row][_col] = 0;
+            end
+        end
+        //
+        // Set window
+        //
+        for(_ch=0 ; _ch<NUM_OF_CHANNEL ; _ch=_ch+1) begin
+            for(_row=0 ; _row<_constrast[_crst] ; _row=_row+1) begin
+                for(_col=0 ; _col<_constrast[_crst] ; _col=_col+1) begin
+                    _focusWindow[_crst][_ch][_row][_col] = 
+                        _image[_noPic][_ch][PIC_MID-_constrast[_crst]/2+1+_row][PIC_MID-_constrast[_crst]/2+1+_col];
+                end
+            end
+        end
+        for(_row=0 ; _row<_constrast[_crst] ; _row=_row+1) begin
+            for(_col=0 ; _col<_constrast[_crst] ; _col=_col+1) begin
+                for(_ch=0 ; _ch<NUM_OF_CHANNEL ; _ch=_ch+1) begin
+                    _focusGrayscale[_crst][_row][_col] =
+                        _focusGrayscale[_crst][_row][_col] +
+                        _focusWindow[_crst][_ch][_row][_col] * _grayscaleRatio[_ch];
+                end
+            end
+        end
+        //
+        // Difference on vertical & horizontal direction
+        //
+        _focusDiffHorizontal[_crst] = 0;
+        _focusDiffVertical[_crst] = 0;
+        _focusNormalizedDiff[_crst] = 0;
+        // Col difference
+        for(_row=0 ; _row<_constrast[_crst] ; _row=_row+1) begin
+            for(_col=0 ; _col<_constrast[_crst]-1 ; _col=_col+1) begin
+                temp =
+                    (_focusGrayscale[_crst][_row][_col]   - _focusGrayscale[_crst][_row][_col+1]) > 0 ?
+                    (_focusGrayscale[_crst][_row][_col]   - _focusGrayscale[_crst][_row][_col+1]) :
+                    (_focusGrayscale[_crst][_row][_col+1] - _focusGrayscale[_crst][_row][_col]);
+                _focusDiffVertical[_crst] = 
+                    _focusDiffVertical[_crst] + temp;
+            end
+        end
+        // Row difference
+        for(_col=0 ; _col<_constrast[_crst] ; _col=_col+1) begin
+            for(_row=0 ; _row<_constrast[_crst]-1 ; _row=_row+1) begin
+                temp =
+                    (_focusGrayscale[_crst][_row+1][_col] - _focusGrayscale[_crst][_row][_col]) > 0 ?
+                    (_focusGrayscale[_crst][_row+1][_col] - _focusGrayscale[_crst][_row][_col]) :
+                    (_focusGrayscale[_crst][_row][_col]   - _focusGrayscale[_crst][_row+1][_col]);
+                _focusDiffHorizontal[_crst] = 
+                    _focusDiffHorizontal[_crst] + temp;
+            end
+        end
+        //
+        // Normalize difference
+        //
+        _focusNormalizedDiff[_crst] = 
+            (_focusDiffVertical[_crst] + _focusDiffHorizontal[_crst]) / (_constrast[_crst]*3);
     end
-    
+    //
+    // Find max contrast
+    //
+    _maxContrast = -1;
+    temp = -1;
+    for(_crst=0 ; _crst<NUM_OF_CONTRASTS ; _crst=_crst+1) begin
+        if(_focusNormalizedDiff[_crst] > temp) begin
+            _maxContrast = _crst;
+            temp = _focusNormalizedDiff[_crst];
+        end
+    end
 end endtask
 
 task auto_exposure; begin
@@ -250,39 +327,83 @@ end endtask
 
 task dump_focus;
     integer file;
+    integer _crst;
     integer _ch;
     integer _row;
     integer _col;
     reg[DUMP_SIZE_PIXEL*8:1] _strPixel;
 begin
     file = $fopen("auto_focus.txt", "w");
-    $fwrite(file, "[ Focus Window ]\n\n");
-    // Focus window
-    for(_ch=0 ; _ch<NUM_OF_CONTRASTS ; _ch=_ch+1) begin
+    $fwrite(file, "[ Auto focus ]\n\n");
+    for(_crst=0 ; _crst<NUM_OF_CONTRASTS ; _crst=_crst+1) begin
+        //
         // Focus size
-        $fwrite(file, "[ #%2d ]\n", _ch);
-        pixelDumper.addSeperator(file, _constrast[_ch]+1);
-        $sformat(_strPixel, "%1d*%1d", _constrast[_ch], _constrast[_ch]);
-        pixelDumper.addCell(file, _strPixel, "s", 1);
+        //
+        $fwrite(file, "[ %1d*%1d ]\n", _constrast[_crst], _constrast[_crst]);
+        //
+        // Focus window
+        //
+        $fwrite(file, "[ Focus window ]\n");
+        for(_ch=0 ; _ch<NUM_OF_CHANNEL ; _ch=_ch+1) begin
+            pixelDumper.addSeperator(file, _constrast[_crst]+1);
+            case(_ch)
+                'd0:pixelDumper.addCell(file, "R-0", "s", 1);
+                'd1:pixelDumper.addCell(file, "G-1", "s", 1);
+                'd2:pixelDumper.addCell(file, "B-2", "s", 1);
+            endcase
+            // Column index
+            for(_col=0 ; _col<_constrast[_crst] ; _col=_col+1) begin
+                pixelDumper.addCell(file, _col, "d", 0);
+            end
+            optDumper.addLine(file);
+            pixelDumper.addSeperator(file, _constrast[_crst]+1);
+            // Row index & pixel
+            for(_row=0 ; _row<_constrast[_crst] ; _row=_row+1) begin
+                // Row index
+                pixelDumper.addCell(file, _row, "d", 1);
+                // Pixel
+                for(_col=0 ; _col<_constrast[_crst] ; _col=_col+1) begin
+                    pixelDumper.addCell(file, _focusWindow[_crst][_ch][_row][_col], "d", 0);
+                end
+                optDumper.addLine(file);
+            end
+            pixelDumper.addSeperator(file, _constrast[_crst]+1);
+            optDumper.addLine(file);
+        end
+
+        //
+        // Focus grayscale
+        //
+        $fwrite(file, "[ Focus grayscale ]\n");
         // Column index
-        for(_col=0 ; _col<_constrast[_ch] ; _col=_col+1) begin
+        pixelDumper.addSeperator(file, _constrast[_crst]+1);
+        pixelDumper.addCell(file, "Gray", "s", 1);
+        for(_col=0 ; _col<_constrast[_crst] ; _col=_col+1) begin
             pixelDumper.addCell(file, _col, "d", 0);
         end
         optDumper.addLine(file);
-        pixelDumper.addSeperator(file, _constrast[_ch]+1);
+        pixelDumper.addSeperator(file, _constrast[_crst]+1);
         // Row index & pixel
-        for(_row=0 ; _row<_constrast[_ch] ; _row=_row+1) begin
+        for(_row=0 ; _row<_constrast[_crst] ; _row=_row+1) begin
             // Row index
             pixelDumper.addCell(file, _row, "d", 1);
             // Pixel
-            for(_col=0 ; _col<_constrast[_ch] ; _col=_col+1) begin
-                pixelDumper.addCell(file, _focusWindow[_ch][_row][_col], "d", 0);
+            for(_col=0 ; _col<_constrast[_crst] ; _col=_col+1) begin
+                pixelDumper.addCell(file, _focusGrayscale[_crst][_row][_col], "d", 0);
             end
             optDumper.addLine(file);
         end
-        pixelDumper.addSeperator(file, _constrast[_ch]+1);
+        pixelDumper.addSeperator(file, _constrast[_crst]+1);
         optDumper.addLine(file);
+
+        //
+        // Focus difference
+        //
+        $fwrite(file, "[ Focus horizontal difference ] : %-10d\n", _focusDiffHorizontal[_crst]);
+        $fwrite(file, "[ Focus vertical difference   ] : %-10d\n", _focusDiffVertical[_crst]);
+        $fwrite(file, "[ Focus normalized difference ] : %-10d\n\n", _focusNormalizedDiff[_crst]);
     end
+    $fwrite(file, "[ Max contrast index / value  ] : %-2d / %-2d\n", _maxContrast, _constrast[_maxContrast]);
     $fclose(file);
 end endtask
 
@@ -415,6 +536,7 @@ begin
         end
     endcase
     if(DEBUG) begin
+        clear_dump_file;
         dump_image;
         dump_focus;
         dump_exposure;
