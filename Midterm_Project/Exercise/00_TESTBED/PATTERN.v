@@ -102,6 +102,8 @@ integer _focusNormalizedDiff[NUM_OF_CONTRASTS-1:0];
 integer _maxContrast;
 // Mode 1
 integer _exposureGrayscale;
+//
+integer _yourOutput;
 
 //
 // Load
@@ -526,6 +528,7 @@ begin
         $fwrite(file, "[ Focus normalized difference ] : %-10d\n\n", _focusNormalizedDiff[_crst]);
     end
     $fwrite(file, "[ Max contrast index / value  ] : %-2d / %-2d\n", _maxContrast, _constrast[_maxContrast]);
+    $fwrite(file, "[ Your max contrast ] : %-2d\n", _yourOutput);
     $fclose(file);
 end endtask
 
@@ -537,6 +540,7 @@ task dump_exposure;
 begin
     file = $fopen("auto_exposure.txt", "w");
     $fwrite(file, "[ Exposure grayscale ] : %-10d\n", _exposureGrayscale);
+    $fwrite(file, "[     Your grayscale ] : %-10d\n", _yourOutput);
     $fclose(file);
 end endtask
 
@@ -697,7 +701,7 @@ begin
             $finish;
         end
 
-        // TODO
+        _yourOutput = out_data;
 
         out_lat = out_lat + 1;
         @(negedge clk);
@@ -708,7 +712,38 @@ begin
         $finish;
     end
 
-    // TODO
+    if(_mode==0) begin
+        if(_yourOutput!==_maxContrast) begin
+            $display("[ERROR] [OUTPUT] Output is not correct...\n");
+            $display("[ERROR] [OUTPUT] Dump debugging file...");
+            $display("[ERROR] [OUTPUT]      image_original.txt");
+            $display("[ERROR] [OUTPUT]      auto_focus.txt\n");
+            $display("[ERROR] [OUTPUT] Your output : %-d", _yourOutput);
+            $display("[ERROR] [OUTPUT] Golden max contrast : %-d\n", _maxContrast);
+            clear_dump_file;
+            dump_original_image;
+            dump_focus;
+            repeat(5) @(negedge clk);
+            $finish;
+        end
+    end
+    else begin
+        if(_yourOutput!==_exposureGrayscale) begin
+            $display("[ERROR] [OUTPUT] Output is not correct...\n");
+            $display("[ERROR] [OUTPUT] Dump debugging file...");
+            $display("[ERROR] [OUTPUT]      image_original.txt -> before auto exposure");
+            $display("[ERROR] [OUTPUT]      image_adjusted.txt ->  after auto exposure");
+            $display("[ERROR] [OUTPUT]      auto_exposure.txt\n");
+            $display("[ERROR] [OUTPUT] Your output : %-d", _yourOutput);
+            $display("[ERROR] [OUTPUT] Golden exposure grayscale : %-d\n", _exposureGrayscale);
+            clear_dump_file;
+            dump_original_image;
+            dump_adjusted_image;
+            dump_exposure;
+            repeat(5) @(negedge clk);
+            $finish;
+        end
+    end
 
     tot_lat = tot_lat + exe_lat;
 end endtask
