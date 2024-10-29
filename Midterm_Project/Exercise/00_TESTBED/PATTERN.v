@@ -73,6 +73,11 @@ reg[10*8:1] bkg_white_prefix  = "\033[47;1m";
 //======================================
 //      DATA MODEL
 //======================================
+// Debugging file
+parameter IMAGE_ORIGINAL_FILE = "image_original.txt";
+parameter IMAGE_ADJUSTED_FILE = "image_adjusted.txt";
+parameter AUTO_FOCUS_FILE = "auto_focus.txt";
+parameter AUTO_EXPOSURE_FILE = "auto_exposure.txt";
 // Input
 parameter NUM_OF_MODE = 2;
 parameter NUM_OF_RATIO = 4;
@@ -101,6 +106,7 @@ integer _focusDiffVertical[NUM_OF_CONTRASTS-1:0];
 integer _focusNormalizedDiff[NUM_OF_CONTRASTS-1:0];
 integer _maxContrast;
 // Mode 1
+parameter ERROR_MARGIN = 2;
 integer _exposureGrayscale;
 //
 integer _yourOutput;
@@ -242,7 +248,7 @@ begin
         // Normalize difference
         //
         _focusNormalizedDiff[_crst] = 
-            (_focusDiffVertical[_crst] + _focusDiffHorizontal[_crst]) / (_constrast[_crst]*3);
+            (_focusDiffVertical[_crst] + _focusDiffHorizontal[_crst]) / (_constrast[_crst]*_constrast[_crst]);
     end
     //
     // Find max contrast
@@ -292,6 +298,22 @@ begin
 end endtask
 
 //
+// Utility
+//
+function isErr;
+    input integer in1;
+    input integer in2;
+    integer abs;
+begin
+    if(_mode!==1) begin
+        $display("[ERROR] [MODE] The mode should be 1. (Auto exposure)");
+        $finish;
+    end
+    abs = (in1 - in2) > 0 ? in1 - in2 : in2 - in1;
+    isErr = (abs >= ERROR_MARGIN) ? 1 : 0;
+end endfunction
+
+//
 // Dump
 //
 parameter DUMP_OPT_PIXEL = 12;
@@ -302,11 +324,13 @@ dumper #(.DUMP_ELEMENT_SIZE(DUMP_SIZE_PIXEL)) pixelDumper();
 task clear_dump_file;
     integer file;
 begin
-    file = $fopen("image.txt", "w");
+    file = $fopen(IMAGE_ORIGINAL_FILE, "w");
     $fclose(file);
-    file = $fopen("auto_focus.txt", "w");
+    file = $fopen(IMAGE_ADJUSTED_FILE, "w");
     $fclose(file);
-    file = $fopen("auto_exposure.txt", "w");
+    file = $fopen(AUTO_FOCUS_FILE, "w");
+    $fclose(file);
+    file = $fopen(AUTO_EXPOSURE_FILE, "w");
     $fclose(file);
 end endtask
 
@@ -320,7 +344,7 @@ task dump_original_image;
     reg[DUMP_SIZE_PIXEL*8:1] _strPixel;
     
 begin
-    file = $fopen("image_original.txt", "w");
+    file = $fopen(IMAGE_ORIGINAL_FILE, "w");
     // Operation
     optDumper.addSeperator(file, 2);
     optDumper.addCell(file, "Pat No.", "s", 1);
@@ -386,7 +410,7 @@ task dump_adjusted_image;
     reg[DUMP_SIZE_PIXEL*8:1] _strPixel;
     
 begin
-    file = $fopen("image_adjusted.txt", "w");
+    file = $fopen(IMAGE_ADJUSTED_FILE, "w");
     // Operation
     optDumper.addSeperator(file, 2);
     optDumper.addCell(file, "Pat No.", "s", 1);
@@ -538,7 +562,7 @@ task dump_exposure;
     integer _row;
     integer _col;
 begin
-    file = $fopen("auto_exposure.txt", "w");
+    file = $fopen(AUTO_EXPOSURE_FILE, "w");
     $fwrite(file, "[ Exposure grayscale ] : %-10d\n", _exposureGrayscale);
     $fwrite(file, "[     Your grayscale ] : %-10d\n", _yourOutput);
     $fclose(file);
@@ -728,7 +752,7 @@ begin
         end
     end
     else begin
-        if(_yourOutput!==_exposureGrayscale) begin
+        if(isErr(_yourOutput,_exposureGrayscale)) begin
             $display("[ERROR] [OUTPUT] Output is not correct...\n");
             $display("[ERROR] [OUTPUT] Dump debugging file...");
             $display("[ERROR] [OUTPUT]      image_original.txt -> before auto exposure");
