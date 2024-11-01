@@ -212,7 +212,7 @@ begin
                 for(_ch=0 ; _ch<NUM_OF_CHANNEL ; _ch=_ch+1) begin
                     _focusGrayWindow[_crst][_row][_col] =
                         _focusGrayWindow[_crst][_row][_col] +
-                        _focusWindow[_crst][_ch][_row][_col] * _grayscaleRatio[_ch];
+                        $floor(_focusWindow[_crst][_ch][_row][_col] * _grayscaleRatio[_ch]);
                 end
             end
         end
@@ -275,7 +275,7 @@ begin
     for(_ch=0 ; _ch<NUM_OF_CHANNEL ; _ch=_ch+1) begin
         for(_row=0 ; _row<SIZE_OF_PIC ; _row=_row+1) begin
             for(_col=0 ; _col<SIZE_OF_PIC ; _col=_col+1) begin
-                temp = _originalImage[_ch][_row][_col] * _ratio[_ratioMode];
+                temp = $floor(_originalImage[_ch][_row][_col] * _ratio[_ratioMode]);
                 _image[_noPic][_ch][_row][_col] = 
                     (temp >= (2**BITS_OF_PIXEL - 1)) ? 
                         (2**BITS_OF_PIXEL - 1) : temp;
@@ -290,7 +290,7 @@ begin
         for(_col=0 ; _col<SIZE_OF_PIC ; _col=_col+1) begin
             for(_ch=0 ; _ch<NUM_OF_CHANNEL ; _ch=_ch+1) begin
                 _exposureGrayscale = _exposureGrayscale +
-                    _image[_noPic][_ch][_row][_col] * _grayscaleRatio[_ch];
+                    $floor(_image[_noPic][_ch][_row][_col] * _grayscaleRatio[_ch]);
             end
         end
     end
