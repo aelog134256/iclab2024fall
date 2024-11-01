@@ -203,7 +203,7 @@ begin
             for(_row=0 ; _row<_constrast[_crst] ; _row=_row+1) begin
                 for(_col=0 ; _col<_constrast[_crst] ; _col=_col+1) begin
                     _focusWindow[_crst][_ch][_row][_col] = 
-                        _originalImage[_ch][PIC_MID-_constrast[_crst]/2+1+_row][PIC_MID-_constrast[_crst]/2+1+_col];
+                        _originalImage[_ch][PIC_MID-_constrast[_crst]/2+_row][PIC_MID-_constrast[_crst]/2+_col];
                 end
             end
         end
@@ -229,8 +229,8 @@ begin
                     (_focusGrayWindow[_crst][_row][_col]   - _focusGrayWindow[_crst][_row][_col+1]) > 0 ?
                     (_focusGrayWindow[_crst][_row][_col]   - _focusGrayWindow[_crst][_row][_col+1]) :
                     (_focusGrayWindow[_crst][_row][_col+1] - _focusGrayWindow[_crst][_row][_col]);
-                _focusDiffVertical[_crst] = 
-                    _focusDiffVertical[_crst] + temp;
+                _focusDiffHorizontal[_crst] = 
+                    _focusDiffHorizontal[_crst] + temp;
             end
         end
         // Row difference
@@ -240,8 +240,8 @@ begin
                     (_focusGrayWindow[_crst][_row+1][_col] - _focusGrayWindow[_crst][_row][_col]) > 0 ?
                     (_focusGrayWindow[_crst][_row+1][_col] - _focusGrayWindow[_crst][_row][_col]) :
                     (_focusGrayWindow[_crst][_row][_col]   - _focusGrayWindow[_crst][_row+1][_col]);
-                _focusDiffHorizontal[_crst] = 
-                    _focusDiffHorizontal[_crst] + temp;
+                _focusDiffVertical[_crst] = 
+                    _focusDiffVertical[_crst] + temp;
             end
         end
         //
