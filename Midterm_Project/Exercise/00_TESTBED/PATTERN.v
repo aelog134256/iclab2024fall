@@ -1,3 +1,19 @@
+/*
+    @debug method : dump file
+        image_original.txt
+        image_adjusted.txt
+        auto_focus.txt
+        auto_exposure.txt
+        
+    @description :
+        1. Generate the dram.dat (simple / normal)
+        2. Run the focus and exposure
+        
+    @issue :
+        
+    @todo :
+        
+*/
 `define CYCLE_TIME 10.0
 
 `include "../00_TESTBED/pseudo_DRAM.v"
