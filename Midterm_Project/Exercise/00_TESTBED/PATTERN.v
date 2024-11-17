@@ -326,7 +326,10 @@ begin
         $finish;
     end
     abs = (in1 - in2) > 0 ? in1 - in2 : in2 - in1;
-    isErr = (abs >= ERROR_MARGIN) ? 1 : 0;
+    isErr = 1;
+    if(abs < ERROR_MARGIN) begin
+        isErr = 0;
+    end
 end endfunction
 
 //
