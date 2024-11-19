@@ -150,6 +150,7 @@ class reportTable;
 
     function void show();
         string out = getTable();
+        out = {out, "\n"};
         _logger.info(out);
     endfunction
 

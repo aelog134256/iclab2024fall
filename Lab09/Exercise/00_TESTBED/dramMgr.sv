@@ -65,6 +65,33 @@ class dramMgr;
     endfunction
 
     // Dumper
+    function void displayDataDir(Data_No id);
+        Data_Dir out = getDataDir(id);
+        reportTable dataTable;
+        dataTable = new("Data Dir Table");
+        dataTable.defineCol("Data");
+        dataTable.defineCol("Value");
+        dataTable.newRow();
+        dataTable.addCell("Id / Addr");
+        dataTable.addCell($sformatf("%3d / %5h", id, START_OF_DRAM_ADDRESS+id*SIZE_OF_STOCK));
+        dataTable.newRow();
+        dataTable.addCell("Index A");
+        dataTable.addCell($sformatf("%4d / %3h", out.Index_A, out.Index_A));
+        dataTable.newRow();
+        dataTable.addCell("Index B");
+        dataTable.addCell($sformatf("%4d / %3h", out.Index_B, out.Index_B));
+        dataTable.newRow();
+        dataTable.addCell("Index C");
+        dataTable.addCell($sformatf("%4d / %3h", out.Index_C, out.Index_C));
+        dataTable.newRow();
+        dataTable.addCell("Index D");
+        dataTable.addCell($sformatf("%4d / %3h", out.Index_D, out.Index_D));
+        dataTable.newRow();
+        dataTable.addCell("Date\(M/D\)");
+        dataTable.addCell($sformatf("%2d / %2d", out.M, out.D));
+        dataTable.show();
+    endfunction
+
     function void dumpDramToFile(string path, int rowPerTable=1);
         int file = $fopen(path, "w");
         string content;
@@ -72,7 +99,7 @@ class dramMgr;
             Data_Dir data = this.getDataDir(id);
             string temp;
             reportTable dataTable;
-            dataTable = new("Data table");
+            dataTable = new("Data Dir table");
             dataTable.defineCol("Data");
             dataTable.defineCol("Value");
             dataTable.newRow();

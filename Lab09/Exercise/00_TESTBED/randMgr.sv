@@ -39,17 +39,38 @@ class randMgr;
 
     // Dumper
     function void display();
-        string info = "[Random Info]\n";
-        info = {info, $sformatf("    * Action : %s\n", this.action)};
-        info = {info, $sformatf("    * Formula type : %s\n", this.formulaType)};
-        info = {info, $sformatf("    * Mode : %s\n", this.mode)};
-        info = {info, $sformatf("    * Index A : %d / %d\n", this.indexA, $signed(this.indexA))};
-        info = {info, $sformatf("    * Index B : %d / %d\n", this.indexB, $signed(this.indexB))};
-        info = {info, $sformatf("    * Index C : %d / %d\n", this.indexC, $signed(this.indexC))};
-        info = {info, $sformatf("    * Index D : %d / %d\n", this.indexD, $signed(this.indexD))};
-        info = {info, $sformatf("    * Date\(M/D\) : %2d/%2d\n", this.month, this.day)};
-        info = {info, $sformatf("    * Data No. : %d\n", this.dataNo)};
-        _logger.info(info);
+        reportTable dataTable;
+        dataTable = new("Random Data");
+        dataTable.defineCol("Data");
+        dataTable.defineCol("Value");
+        dataTable.newRow();
+        dataTable.addCell("Action");
+        dataTable.addCell($sformatf("%s", this.action.name()));
+        dataTable.newRow();
+        dataTable.addCell("Formula type");
+        dataTable.addCell($sformatf("%s", this.formulaType.name()));
+        dataTable.newRow();
+        dataTable.addCell("Mode");
+        dataTable.addCell($sformatf("%s", this.mode.name()));
+        dataTable.newRow();
+        dataTable.addCell("Index A");
+        dataTable.addCell($sformatf("%4d / %5d / %3h", this.indexA, $signed(this.indexA), this.indexA));
+        dataTable.newRow();
+        dataTable.addCell("Index B");
+        dataTable.addCell($sformatf("%4d / %5d / %3h", this.indexB, $signed(this.indexB), this.indexB));
+        dataTable.newRow();
+        dataTable.addCell("Index C");
+        dataTable.addCell($sformatf("%4d / %5d / %3h", this.indexC, $signed(this.indexC), this.indexC));
+        dataTable.newRow();
+        dataTable.addCell("Index D");
+        dataTable.addCell($sformatf("%4d / %5d / %3h", this.indexD, $signed(this.indexD), this.indexD));
+        dataTable.newRow();
+        dataTable.addCell("Date\(M/D\)");
+        dataTable.addCell($sformatf("%2d / %2d", this.month, this.day));
+        dataTable.newRow();
+        dataTable.addCell("Data No.");
+        dataTable.addCell($sformatf("%3d", this.dataNo));
+        dataTable.show();
     endfunction
 
     constraint range{

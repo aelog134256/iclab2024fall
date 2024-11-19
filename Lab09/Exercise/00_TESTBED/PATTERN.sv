@@ -1,8 +1,6 @@
 
 // `include "../00_TESTBED/pseudo_DRAM.sv"
 `include "Usertype.sv"
-`include "../00_TESTBED/dramMgr.sv"
-`include "../00_TESTBED/randMgr.sv"
 `include "../00_TESTBED/stockTradeFlowMgr.sv"
 
 program automatic PATTERN(input clk, INF.PATTERN inf);
@@ -12,7 +10,7 @@ import usertype::*;
 //======================================
 //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 // Can be modified by user
-integer   TOTAL_PATNUM = 10;
+integer   TOTAL_PATNUM = 2;
 integer   SEED = 5487;
 parameter DEBUG = 1;
 parameter DRAM_p_r = "../00_TESTBED/DRAM/dram.dat";
@@ -26,6 +24,7 @@ integer   MODE = 1;
 // -------------------------------------
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 parameter DELAY = 1000;
+parameter OUTNUM = 1;
 
 // PATTERN CONTROL
 integer pat;
@@ -52,7 +51,6 @@ reg[10*8:1] bkg_white_prefix  = "\033[47;1m";
 //      DATA MODEL
 //======================================
 logger _logger = new("PATTERN");
-dramMgr _dramMgr = new(SEED);
 stockTradeFlowMgr _stockTradeFlowMgr = new(SEED);
 
 //======================================
@@ -63,6 +61,7 @@ initial exe_task;
 //======================================
 //             ASSERTION
 //======================================
+// Reset
 assert_rst:
     assert property (
         @(posedge inf.rst_n)
@@ -77,14 +76,91 @@ assert_rst:
         // $finish;
     end
 
-// assert_wait:
+// Wait
+/*
+Code 1:
+assert property (
+        @(posedge clk)
+        ((actionAssertCheck==Index_Check     ) |=> ##[1:10] (inf.out_valid===1)) or
+        ((actionAssertCheck==Update          ) |-> ##[1:10] (inf.out_valid===1))
+    )
+
+Code 2:
+assert property (
+        @(posedge clk)
+        ((actionAssertCheck==Update          ) |-> ##[1:10] (inf.out_valid===1))
+    )
+
+@Issue :
+    Code 2 can detect the assertion error. However, the Code 1 can't detect the same error even in the same scenario
+
+@Root cause :
+    "or" should check the multiple condition simutaneously.
+    When the program is checking the first one, the second one can't be triggered.
+
+@Workaround :
+    Seperate the two condition check to 2 properties
+*/
+Action actionAssertCheck;
+property wait_for_Index_Check;
+        @(posedge clk)
+            ((actionAssertCheck==Index_Check ) |-> ##[1:DELAY] (inf.out_valid===1));
+endproperty
+property wait_for_Update;
+        @(posedge clk)
+            ((actionAssertCheck==Update ) |-> ##[1:DELAY] (inf.out_valid===1));
+endproperty
+property wait_for_Check_Valid_Date;
+        @(posedge clk)
+            ((actionAssertCheck==Check_Valid_Date) |-> ##[1:DELAY] inf.out_valid===1);
+endproperty
+
+assert_wait:
+    assert property (
+        wait_for_Index_Check and wait_for_Update and wait_for_Check_Valid_Date
+    )
+    else begin
+        _logger.error($sformatf("The execution latency at %-12d ps is over %5d cycles  ", $time*1000, DELAY), 0);
+        repeat(5) @(negedge clk);
+        $fatal;
+    end
+
+// Output
+assert_out_valid:
+    assert property (
+        @(posedge clk)
+            inf.out_valid |-> ##[1:OUTNUM] inf.out_valid === 0
+    )
+    else
+    begin
+        _logger.error($sformatf("Out cycles is less than %3d at %-12d ps", OUTNUM, $time*1000));
+        repeat(5) @(negedge clk);
+        $fatal; 
+    end
+
+// TODO:
+// assert_out_valid_not_overlap:
 //     assert property (
+//         @(posedge clk)
 //     )
-//     else begin
-//         _logger.error($sformatf("Output signal should be 0 at %-12d ps  ", $time*1000), 0);
+//     else
+//     begin
+//         _logger.error($sformatf("Out valid can't be overlapped with input valid at %-12d ps", $time*1000));
 //         repeat(5) @(negedge clk);
-//         $fatal;
+//         $fatal; 
 //     end
+
+assert_complete_with_no_warn:
+    assert property (
+        @(posedge clk)
+            (inf.out_valid && inf.complete) |-> (inf.warn_msg===No_Warn)
+    )
+    else
+    begin
+        _logger.error($sformatf("Out valid can't be overlapped with input valid at %-12d ps", $time*1000));
+        repeat(5) @(negedge clk);
+        $fatal; 
+    end
 
 //======================================
 //              TASKS
@@ -100,7 +176,7 @@ task exe_task; begin
 end endtask
 
 task generate_dram_task; begin
-    _dramMgr.randomizeDramDat(DRAM_p_r);
+    _stockTradeFlowMgr.getDramMgr().randomizeDramDat(DRAM_p_r);
     $finish;
 end endtask
 
@@ -118,8 +194,9 @@ task validate_design_task; begin
 end endtask
 
 task load_dat_from_dram; begin
-    _dramMgr.loadDramFromDat(DRAM_p_r);
-    _dramMgr.dumpDramToFile(DRAM_INFO_FILE, NUM_OF_TABLE_PER_ROW_OF_DRAM_INFO_FILE);
+    _stockTradeFlowMgr.getDramMgr().loadDramFromDat(DRAM_p_r);
+    if(DEBUG)
+        _stockTradeFlowMgr.getDramMgr().dumpDramToFile(DRAM_INFO_FILE, NUM_OF_TABLE_PER_ROW_OF_DRAM_INFO_FILE);
 end endtask
 
 task reset_task; begin
@@ -136,8 +213,79 @@ task reset_task; begin
     #(10) inf.rst_n = 1;
 end endtask
 
+// Input utility
+task send_valid_and_data;
+    input string dataTypeName;
+    input string indexName;
+begin
+    Data data;
+    if(indexName == "")
+        data = _stockTradeFlowMgr.getInputMgr().getInputData(dataTypeName);
+    else
+        data = _stockTradeFlowMgr.getInputMgr().getInputData(dataTypeName, indexName);
+    inf.sel_action_valid = _stockTradeFlowMgr.getInputMgr().getValid($typename(inf.D.d_act[0]), dataTypeName);
+    inf.formula_valid = _stockTradeFlowMgr.getInputMgr().getValid($typename(inf.D.d_formula[0]), dataTypeName);
+    inf.mode_valid = _stockTradeFlowMgr.getInputMgr().getValid($typename(inf.D.d_mode[0]), dataTypeName);
+    inf.date_valid = _stockTradeFlowMgr.getInputMgr().getValid($typename(inf.D.d_date[0]), dataTypeName);
+    inf.data_no_valid = _stockTradeFlowMgr.getInputMgr().getValid($typename(inf.D.d_data_no[0]), dataTypeName);
+    inf.index_valid = _stockTradeFlowMgr.getInputMgr().getValid($typename(inf.D.d_index[0]), dataTypeName);
+    inf.D = data;
+
+    @(negedge clk);
+
+    inf.sel_action_valid = 0;
+    inf.formula_valid = 0;
+    inf.mode_valid = 0;
+    inf.date_valid = 0;
+    inf.data_no_valid = 0;
+    inf.index_valid = 0;
+    inf.D = 'dx;
+end endtask
+
+task random_gap_cycles; begin
+    repeat( ({$random(SEED)} % 4 + 0) ) @(negedge clk);
+end endtask
+
 task input_task; begin
-    
+    Action act;
+    repeat( ({$random(SEED)} % 4 + 1) ) @(negedge clk);
+    // Randomize
+    _stockTradeFlowMgr.getInputMgr().randomizeInput();
+    _stockTradeFlowMgr.getInputMgr().display();
+    // Action
+    act = _stockTradeFlowMgr.getInputMgr().getAction();
+    // Assertion
+    actionAssertCheck = act;
+    send_valid_and_data($typename(act), "");
+    // Other
+    case(act)
+        Index_Check: begin
+            send_valid_and_data($typename(inf.D.d_formula[0]), "");
+            send_valid_and_data($typename(inf.D.d_mode[0]), "");
+            send_valid_and_data($typename(inf.D.d_date[0]), "");
+            send_valid_and_data($typename(inf.D.d_data_no[0]), "");
+            send_valid_and_data($typename(inf.D.d_index[0]), "A");
+            send_valid_and_data($typename(inf.D.d_index[0]), "B");
+            send_valid_and_data($typename(inf.D.d_index[0]), "C");
+            send_valid_and_data($typename(inf.D.d_index[0]), "D");
+        end
+        Update: begin
+            send_valid_and_data($typename(inf.D.d_date[0]), "");
+            send_valid_and_data($typename(inf.D.d_data_no[0]), "");
+            send_valid_and_data($typename(inf.D.d_index[0]), "A");
+            send_valid_and_data($typename(inf.D.d_index[0]), "B");
+            send_valid_and_data($typename(inf.D.d_index[0]), "C");
+            send_valid_and_data($typename(inf.D.d_index[0]), "D");
+        end
+        Check_Valid_Date: begin
+            send_valid_and_data($typename(inf.D.d_date[0]), "");
+        end
+        default: begin
+            _logger.error($sformatf("Action (%s) isn't valid...", _stockTradeFlowMgr.getInputMgr().getAction().name()));
+        end
+    endcase
+    // Assertion
+    actionAssertCheck = 'dx;
 end endtask
 
 task cal_task; begin
@@ -145,11 +293,13 @@ task cal_task; begin
 end endtask
 
 task wait_task; begin
-    
+    wait(inf.out_valid);
 end endtask
 
 task check_task; begin
-    
+    if(inf.out_valid) begin
+        _stockTradeFlowMgr.getOutputMgr().setGoldOutput(inf.warn_msg, inf.complete);
+    end
 end endtask
 
 task pass_task; begin
