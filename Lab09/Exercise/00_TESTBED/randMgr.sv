@@ -37,39 +37,45 @@ class randMgr;
         end
     endfunction
 
-    // Dumper
-    function void display();
+    // Getter
+    function reportTable getTable();
         reportTable dataTable;
         dataTable = new("Random Data");
         dataTable.defineCol("Data");
         dataTable.defineCol("Value");
         dataTable.newRow();
         dataTable.addCell("Action");
-        dataTable.addCell($sformatf("%s", this.action.name()));
+        dataTable.addCell($sformatf("%s", action.name()));
         dataTable.newRow();
         dataTable.addCell("Formula type");
-        dataTable.addCell($sformatf("%s", this.formulaType.name()));
+        dataTable.addCell($sformatf("%s", formulaType.name()));
         dataTable.newRow();
         dataTable.addCell("Mode");
-        dataTable.addCell($sformatf("%s", this.mode.name()));
+        dataTable.addCell($sformatf("%s", mode.name()));
         dataTable.newRow();
         dataTable.addCell("Index A");
-        dataTable.addCell($sformatf("%4d / %5d / %3h", this.indexA, $signed(this.indexA), this.indexA));
+        dataTable.addCell($sformatf("%4d / %5d / %3h", indexA, $signed(indexA), indexA));
         dataTable.newRow();
         dataTable.addCell("Index B");
-        dataTable.addCell($sformatf("%4d / %5d / %3h", this.indexB, $signed(this.indexB), this.indexB));
+        dataTable.addCell($sformatf("%4d / %5d / %3h", indexB, $signed(indexB), indexB));
         dataTable.newRow();
         dataTable.addCell("Index C");
-        dataTable.addCell($sformatf("%4d / %5d / %3h", this.indexC, $signed(this.indexC), this.indexC));
+        dataTable.addCell($sformatf("%4d / %5d / %3h", indexC, $signed(indexC), indexC));
         dataTable.newRow();
         dataTable.addCell("Index D");
-        dataTable.addCell($sformatf("%4d / %5d / %3h", this.indexD, $signed(this.indexD), this.indexD));
+        dataTable.addCell($sformatf("%4d / %5d / %3h", indexD, $signed(indexD), indexD));
         dataTable.newRow();
         dataTable.addCell("Date\(M/D\)");
-        dataTable.addCell($sformatf("%2d / %2d", this.month, this.day));
+        dataTable.addCell($sformatf("%2d / %2d", month, day));
         dataTable.newRow();
         dataTable.addCell("Data No.");
-        dataTable.addCell($sformatf("%3d", this.dataNo));
+        dataTable.addCell($sformatf("%3d", dataNo));
+        return dataTable;
+    endfunction
+
+    // Dumper
+    function void display();
+        reportTable dataTable = getTable();
         dataTable.show();
     endfunction
 

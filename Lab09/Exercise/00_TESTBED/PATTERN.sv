@@ -1,6 +1,7 @@
 
 // `include "../00_TESTBED/pseudo_DRAM.sv"
 `include "Usertype.sv"
+`include "../00_TESTBED/utility.sv"
 `include "../00_TESTBED/stockTradeFlowMgr.sv"
 
 program automatic PATTERN(input clk, INF.PATTERN inf);
@@ -209,6 +210,8 @@ task reset_task; begin
     inf.index_valid = 0;
     inf.D = 'dx;
 
+    tot_lat = 0;
+
     #(10) inf.rst_n = 0;
     #(10) inf.rst_n = 1;
 end endtask
@@ -247,18 +250,17 @@ task random_gap_cycles; begin
 end endtask
 
 task input_task; begin
-    Action act;
+    Action inputAction;
     repeat( ({$random(SEED)} % 4 + 1) ) @(negedge clk);
     // Randomize
     _stockTradeFlowMgr.getInputMgr().randomizeInput();
-    _stockTradeFlowMgr.getInputMgr().display();
     // Action
-    act = _stockTradeFlowMgr.getInputMgr().getAction();
+    inputAction = _stockTradeFlowMgr.getInputMgr().getAction();
     // Assertion
-    actionAssertCheck = act;
-    send_valid_and_data($typename(act), "");
+    actionAssertCheck = inputAction;
+    send_valid_and_data($typename(inputAction), "");
     // Other
-    case(act)
+    case(inputAction)
         Index_Check: begin
             send_valid_and_data($typename(inf.D.d_formula[0]), "");
             send_valid_and_data($typename(inf.D.d_mode[0]), "");
@@ -281,7 +283,7 @@ task input_task; begin
             send_valid_and_data($typename(inf.D.d_date[0]), "");
         end
         default: begin
-            _logger.error($sformatf("Action (%s) isn't valid...", _stockTradeFlowMgr.getInputMgr().getAction().name()));
+            _logger.error($sformatf("Action (%s) isn't valid...", inputAction.name()));
         end
     endcase
     // Assertion
@@ -293,13 +295,28 @@ task cal_task; begin
 end endtask
 
 task wait_task; begin
-    wait(inf.out_valid);
+    exe_lat = -1;
+    while(inf.out_valid !== 1) begin
+        exe_lat = exe_lat + 1;
+        @(negedge clk);
+    end
 end endtask
 
 task check_task; begin
-    if(inf.out_valid) begin
+    _stockTradeFlowMgr.getOutputMgr().clear();
+
+    // _stockTradeFlowMgr.getInputMgr().getRandMgr().display();
+
+    while(inf.out_valid === 1) begin
         _stockTradeFlowMgr.getOutputMgr().setGoldOutput(inf.warn_msg, inf.complete);
+        if(!_stockTradeFlowMgr.getOutputMgr().isCorrect()) begin
+            _stockTradeFlowMgr.display();
+        end
+        @(negedge clk);
     end
+
+    tot_lat = tot_lat + exe_lat;
+    $display("%0sPASS PATTERN NO.%4d %0sCycles: %3d%0s",txt_blue_prefix, pat, txt_green_prefix, exe_lat, reset_color);
 end endtask
 
 task pass_task; begin

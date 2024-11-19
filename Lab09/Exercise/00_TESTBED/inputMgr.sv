@@ -53,50 +53,80 @@ class inputMgr;
         return out;
     endfunction
 
-    //
     function Action getAction();
         return _randMgr.action;
-    endfunction
-
-    function Formula_Type getFormulaType();
-        return _randMgr.formulaType;
-    endfunction
-
-    function Mode getMode();
-        return _randMgr.mode;
-    endfunction
-
-    function Index getIndexA();
-        return _randMgr.indexA;
-    endfunction
-
-    function Index getIndexB();
-        return _randMgr.indexB;
-    endfunction
-
-    function Index getIndexC();
-        return _randMgr.indexC;
-    endfunction
-
-    function Index getIndexD();
-        return _randMgr.indexD;
-    endfunction
-
-    function Month getMonth();
-        return _randMgr.month;
-    endfunction
-
-    function Day getDay();
-        return _randMgr.day;
     endfunction
 
     function Data_No getDataNo();
         return _randMgr.dataNo;
     endfunction
 
+    function randMgr getRandMgr();
+        return _randMgr;
+    endfunction
+
+    function reportTable getInputTable(Action actionSel);
+        reportTable dataTable;
+        dataTable = new("Input table");
+        dataTable.defineCol("Data");
+        dataTable.defineCol("Value");
+        dataTable.newRow();
+        dataTable.addCell("Action");
+        dataTable.addCell($sformatf("%s", _randMgr.action.name()));
+        dataTable.newRow();
+        if(actionSel == Index_Check) begin
+            dataTable.addCell("Formula type");
+            dataTable.addCell($sformatf("%s", _randMgr.formulaType.name()));
+            dataTable.newRow();
+
+            dataTable.addCell("Mode");
+            dataTable.addCell($sformatf("%s", _randMgr.mode.name()));
+            dataTable.newRow();
+        end
+
+        dataTable.addCell("Date\(M/D\)");
+        dataTable.addCell($sformatf("%2d / %2d", _randMgr.month, _randMgr.day));
+        dataTable.newRow();
+
+        if(actionSel == Index_Check || actionSel == Update) begin
+            dataTable.addCell("Data No.");
+            dataTable.addCell($sformatf("%3d", _randMgr.dataNo));
+            dataTable.newRow();
+            dataTable.addCell(actionSel == Index_Check ? "Index A" : "Variation of Index A");
+            dataTable.addCell(
+                actionSel == Index_Check
+                ? $sformatf("%4d / %3h", _randMgr.indexA, _randMgr.indexA)
+                : $sformatf("%5d / %3h", $signed(_randMgr.indexA), _randMgr.indexA)
+            );
+            dataTable.newRow();
+            dataTable.addCell(actionSel == Index_Check ? "Index B" : "Variation of Index B");
+            dataTable.addCell(
+                actionSel == Index_Check
+                ? $sformatf("%4d / %3h", _randMgr.indexB, _randMgr.indexB)
+                : $sformatf("%5d / %3h", $signed(_randMgr.indexB), _randMgr.indexB)
+            );
+            dataTable.newRow();
+            dataTable.addCell(actionSel == Index_Check ? "Index C" : "Variation of Index C");
+            dataTable.addCell(
+                actionSel == Index_Check
+                ? $sformatf("%4d / %3h", _randMgr.indexC, _randMgr.indexC)
+                : $sformatf("%5d / %3h", $signed(_randMgr.indexC), _randMgr.indexC)
+            );
+            dataTable.newRow();
+            dataTable.addCell(actionSel == Index_Check ? "Index D" : "Variation of Index D");
+            dataTable.addCell(
+                actionSel == Index_Check
+                ? $sformatf("%4d / %3h", _randMgr.indexD, _randMgr.indexD)
+                : $sformatf("%5d / %3h", $signed(_randMgr.indexD), _randMgr.indexD)
+            );
+        end
+        return dataTable;
+    endfunction
+
     // Dumper
     function void display();
-        _randMgr.display();
+        reportTable dataTable = getInputTable(getAction());
+        dataTable.show();
     endfunction
 
     local logger _logger;

@@ -20,11 +20,11 @@ class logger;
     endfunction
 
     function void info(string meesage);
-        $display("[INFO] [%s] - %s", this._step, meesage);
+        $display("[INFO] [%s] - %s", _step, meesage);
     endfunction
 
     function void error(string meesage, logic isFinish=1);
-        $display("[ERROR] [%s] - %s", this._step, meesage);
+        $display("[ERROR] [%s] - %s", _step, meesage);
         if(isFinish) begin
             $fatal;
         end
@@ -109,6 +109,7 @@ endclass
 //======================================
 //      Report Table
 //======================================
+// TODO: Static method -> combineStringHorizontal
 class reportTable;
     function new(string name);
         this._content = '{{}};
@@ -116,28 +117,28 @@ class reportTable;
     endfunction
     
     function void defineCol(string info);
-        this._content[0].push_back(info);
+        _content[0].push_back(info);
     endfunction
 
     function void addCell(string info);
-        this._content[$].push_back(info);
+        _content[$].push_back(info);
     endfunction
 
     function void newRow();
-        this._content.push_back({});
+        _content.push_back({});
     endfunction
 
-    function string getTable();
+    function string toString();
         string seperator = getSeperator();
         string out = {"\n", seperator};
         string element;
         int size;
-        foreach(this._content[row]) begin
+        foreach(_content[row]) begin
             out = {out, "\n|"};
-            foreach(this._content[row][col]) begin
-                size = getMaxSizeCol(col) - this._content[row][col].len();
+            foreach(_content[row][col]) begin
+                size = getMaxSizeCol(col) - _content[row][col].len();
                 element = size>0 ? {size{" "}} : "";
-                element = {element, this._content[row][col]};
+                element = {element, _content[row][col]};
                 out = {out, " "};
                 out = {out, element};
                 out = {out, " |"};
@@ -149,7 +150,7 @@ class reportTable;
     endfunction
 
     function void show();
-        string out = getTable();
+        string out = toString();
         out = {out, "\n"};
         _logger.info(out);
     endfunction
@@ -173,12 +174,18 @@ class reportTable;
             str1_lines[i] = {str1_lines[i], {(maxSize - str1_lines[i].len()){" "}}};
         end
 
+        // If the number of lines in str1 is less than in str2, add blank lines
+        for (int i = str1_lines.size(); i < str2_lines.size(); i++) begin
+            str1_lines.push_back({maxSize{" "}});
+        end
+
         // Combine
         while (idx1 < str1_lines.size() || idx2 < str2_lines.size()) begin
             string line1 = (idx1 < str1_lines.size()) ? str1_lines[idx1++] : "";
             string line2 = (idx2 < str2_lines.size()) ? str2_lines[idx2++] : "";
 
-            result = {result, line1, (line2 != "" ? sep : ""), line2, "\n"};
+            // result = {result, line1, (line2 != "" ? sep : ""), line2, "\n"};
+            result = {result, line1, sep, line2, "\n"};
         end
         return result;
     endfunction
@@ -203,8 +210,8 @@ class reportTable;
 
     local function int getMaxSizeCol(int col);
         int size = 0;
-        for(int row=0 ; row<this._content.size() ; row++) begin
-            size = this._content[row][col].len() > size ? this._content[row][col].len() : size;
+        for(int row=0 ; row<_content.size() ; row++) begin
+            size = _content[row][col].len() > size ? _content[row][col].len() : size;
         end
         return size;
     endfunction
@@ -212,7 +219,7 @@ class reportTable;
     local function string getSeperator();
         string out;
         out = {out, "+"};
-        for(int col=0 ; col<this._content[0].size() ; col++)begin
+        for(int col=0 ; col<_content[0].size() ; col++)begin
             int size = getMaxSizeCol(col);
             for(int i=0 ; i<size+2 ; i++)begin
                 out = {out, "-"};

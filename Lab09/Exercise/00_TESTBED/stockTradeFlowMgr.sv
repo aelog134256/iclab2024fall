@@ -37,6 +37,43 @@ class stockTradeFlowMgr;
     endfunction
 
     // Dumper
+    function void display();
+        Action curAction = _inputMgr.getAction();
+        reportTable inputTable = _inputMgr.getInputTable(curAction);
+        reportTable outputTable = _outputMgr.getOutputTable();
+        reportTable originalDataDirTable = _dramMgr.DataDirToTable(_outputMgr.getOriginalDataDir());
+        reportTable currentDataDirTable = _dramMgr.DataDirToTable(_dramMgr.getDataDir(_inputMgr.getDataNo()));
+        
+        string content = "Output is not correct...\n\n";
+        content = {
+            content,
+            outputTable.combineStringHorizontal(
+                {"[Input table ] :\n", inputTable.toString()},
+                {"[Output table] :\n", outputTable.toString()},
+                "    "
+            ),
+            "\n\n"
+        };
+        // content = {content, "[Input table ] :\n", inputTable.toString(), "\n\n"};
+        // content = {content, "[Output table] :\n", outputTable.toString(), "\n"};
+        if(curAction==Index_Check) begin
+            content = {content, "[Dram Data Dir] :\n", currentDataDirTable.toString(), "\n\n"};
+        end
+        else if(curAction==Update) begin
+            content = {
+                content,
+                outputTable.combineStringHorizontal(
+                    {"[Original Dram Data Dir] :\n", originalDataDirTable.toString()},
+                    {"[Current Dram Data Dir] :\n", currentDataDirTable.toString()},
+                    "    "
+                ),
+                "\n\n"
+            };
+            // content = {content, "[Original Dram Data Dir] :\n", originalDataDirTable.toString(), "\n\n"};
+            // content = {content, "[Current Dram Data Dir] :\n", currentDataDirTable.toString(), "\n\n"};
+        end
+        _logger.error(content);
+    endfunction
 
     local logger _logger;
     local dramMgr _dramMgr;
