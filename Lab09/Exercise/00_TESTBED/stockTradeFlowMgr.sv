@@ -53,8 +53,7 @@ class stockTradeFlowMgr;
 
         // Store
         _outputMgr.setGoldOutput(goldWarnMsg, goldComplete);
-        if(goldWarnMsg==No_Warn)
-            _outputMgr.setResult(res, threshold);
+        _outputMgr.setResult(res, threshold);
     endfunction
 
     function void update();

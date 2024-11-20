@@ -43,15 +43,15 @@ class paramMgr;
 
     // Formula
     static function Index getThreshold(Formula_Type formula, Mode mode);
-        Index thresholdTable[formula.num()][mode.num()] = '{
-            {2047, 1023, 511}, //Formula_A
-            {800, 400, 200},   //Formula_B
-            {2047, 1023, 511}, //Formula_C
-            {3, 2, 1},         //Formula_D
-            {3, 2, 1},         //Formula_E
-            {800, 400, 200},   //Formula_F
-            {800, 400, 200},   //Formula_G
-            {800, 400, 200}    //Formula_H
+        Index thresholdTable[formula.num()][2**$bits(Mode)] = '{
+            {2047, 1023, 'dx, 511}, //Formula_A
+            {800, 400, 'dx, 200},   //Formula_B
+            {2047, 1023, 'dx, 511}, //Formula_C
+            {3, 2, 'dx, 1},         //Formula_D
+            {3, 2, 'dx, 1},         //Formula_E
+            {800, 400, 'dx, 200},   //Formula_F
+            {800, 400, 'dx, 200},   //Formula_G
+            {800, 400, 'dx, 200}    //Formula_H
         };
         if (
             formula inside {
