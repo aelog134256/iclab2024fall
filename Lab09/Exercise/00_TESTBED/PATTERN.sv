@@ -103,17 +103,20 @@ assert property (
     Seperate the two condition check to 2 properties
 */
 Action actionAssertCheck;
+sequence index_valid_high_4;
+    inf.index_valid ##1 inf.index_valid ##1 inf.index_valid ##1 inf.index_valid;
+endsequence
 property wait_for_Index_Check;
         @(posedge clk)
-            ((actionAssertCheck==Index_Check ) |-> ##[1:DELAY] (inf.out_valid===1));
+            ((actionAssertCheck==Index_Check and index_valid_high_4) |-> ##[1:DELAY] (inf.out_valid===1));
 endproperty
 property wait_for_Update;
         @(posedge clk)
-            ((actionAssertCheck==Update ) |-> ##[1:DELAY] (inf.out_valid===1));
+            ((actionAssertCheck==Update and index_valid_high_4) |-> ##[1:DELAY] (inf.out_valid===1));
 endproperty
 property wait_for_Check_Valid_Date;
         @(posedge clk)
-            ((actionAssertCheck==Check_Valid_Date) |-> ##[1:DELAY] inf.out_valid===1);
+            ((actionAssertCheck==Check_Valid_Date && inf.data_no_valid)  |-> ##[1:DELAY] inf.out_valid===1);
 endproperty
 
 assert_wait:

@@ -46,7 +46,7 @@ class stockTradeFlowMgr;
 
         // Warng Msg
         if(paramMgr::dateIsEarlier(today, dramDate)) goldWarnMsg = Date_Warn;
-        if(res >= threshold) goldWarnMsg = Risk_Warn;
+        else if(res >= threshold) goldWarnMsg = Risk_Warn;
 
         // Complete
         goldComplete = goldWarnMsg!=No_Warn ? 0 : 1;
