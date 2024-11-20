@@ -9,7 +9,6 @@ class randMgr;
     function new(int seed);
         this.srandom(seed);
         this._logger = new("randMgr");
-        this._paramMgr = new();
 
         enumRandList();
     endfunction
@@ -88,9 +87,9 @@ class randMgr;
         this.indexC inside{[0:(2**$bits(Index)-1)]};
         this.indexD inside{[0:(2**$bits(Index)-1)]};
         this.month inside{[1:12]};
-        // this.date.D inside{[1:_paramMgr.getNbOfDays(this.date.M)]};
+        // this.date.D inside{[1:paramMgr::getNbOfDays(this.date.M)]};
         1 <= this.day;
-        this.day <= _paramMgr.getNbOfDays(this.month);
+        this.day <= paramMgr::getNbOfDays(this.month);
         this.dataNo inside{[0:(2**$bits(Data_No)-1)]};
     }
 
@@ -106,7 +105,6 @@ class randMgr;
     rand Data_No dataNo;
 
     local logger _logger;
-    local paramMgr _paramMgr;
 
     Action actions[$];
     Formula_Type formulaTypes[$];

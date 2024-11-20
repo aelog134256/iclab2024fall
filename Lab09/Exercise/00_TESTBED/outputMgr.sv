@@ -8,10 +8,12 @@ import usertype::*;
 class outputMgr;
     function new();
         this._logger = new("outputMgr");
-        this._goldWarnMsg = No_Warn;
-        this._goldComplete = 0;
-        this._curWarnMsg = No_Warn;
-        this._curComplete = 0;
+        this._goldWarnMsg = 'dx;
+        this._goldComplete = 'dx;
+        this._curWarnMsg = 'dx;
+        this._curComplete = 'dx;
+        this.res = 'dx;
+        this.threshold = 'dx;
         this._originalDataDir.Index_A = 'dx;
         this._originalDataDir.Index_B = 'dx;
         this._originalDataDir.Index_C = 'dx;
@@ -27,16 +29,23 @@ class outputMgr;
 
     // Setter
     function void clear();
-        this._goldWarnMsg = No_Warn;
-        this._goldComplete = 0;
-        this._curWarnMsg = No_Warn;
-        this._curComplete = 0;
+        this._goldWarnMsg = 'dx;
+        this._goldComplete = 'dx;
+        this._curWarnMsg = 'dx;
+        this._curComplete = 'dx;
+        this.res = 'dx;
+        this.threshold = 'dx;
         this._originalDataDir.Index_A = 'dx;
         this._originalDataDir.Index_B = 'dx;
         this._originalDataDir.Index_C = 'dx;
         this._originalDataDir.Index_D = 'dx;
         this._originalDataDir.M = 'dx;
         this._originalDataDir.D = 'dx;
+    endfunction
+
+    function void setResult(Index resIn, Index thresIn);
+        res = resIn;
+        threshold = thresIn;
     endfunction
 
     function void setOriginalDataDir(Data_Dir in);
@@ -54,8 +63,30 @@ class outputMgr;
     endfunction
 
     // Getter
+    function Index getResult();
+        return res;
+    endfunction
+
+    function Index getThreshold();
+        return threshold;
+    endfunction
+
     function Data_Dir getOriginalDataDir();
         return _originalDataDir;
+    endfunction
+
+    function reportTable getIndexCheckTable();
+        reportTable dataTable;
+        dataTable = new("Index Check table");
+        dataTable.defineCol("Data");
+        dataTable.defineCol("Value");
+        dataTable.newRow();
+        dataTable.addCell("Result");
+        dataTable.addCell($sformatf("%4d", res));
+        dataTable.newRow();
+        dataTable.addCell("Threshold");
+        dataTable.addCell($sformatf("%4d", threshold));
+        return dataTable;
     endfunction
 
     function reportTable getOutputTable();
@@ -81,6 +112,11 @@ class outputMgr;
         dataTable.show();
     endfunction
 
+    // Index Check
+    Index res;
+    Index threshold;
+
+    // Update
     Data_Dir _originalDataDir;
 
     local Warn_Msg _goldWarnMsg;

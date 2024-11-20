@@ -36,28 +36,13 @@ endclass
 //======================================
 //      Parameter
 //======================================
-// TODO : Static method
 class paramMgr;
     function new();
         this._logger = new("paramMgr");
     endfunction
 
-    function Day getNbOfDays(Month month);
-        case(month)
-            1, 3, 5, 7, 8, 10, 12:
-                return 31;
-            4, 6, 9, 11:
-                return 30;
-            2:
-                return 28;
-            default: begin
-                _logger.error($sformatf("Invalid Month : %d", month));
-                return 28;
-            end
-        endcase
-    endfunction
-
-    function Index getThreshold(Formula_Type formula, Mode mode);
+    // Formula
+    static function Index getThreshold(Formula_Type formula, Mode mode);
         Index thresholdTable[formula.num()][mode.num()] = '{
             {2047, 1023, 511}, //Formula_A
             {800, 400, 200},   //Formula_B
@@ -83,7 +68,77 @@ class paramMgr;
         end
     endfunction
 
-    function logic dateIsEarlier(Date a, Date b);
+    static function Index calcResult(
+        Formula_Type formula,
+        Index earlyA, Index earlyB, Index earlyC, Index earlyD, 
+        Index todayA, Index todayB, Index todayC, Index todayD
+    );
+        logic signed[$bits(Index)+1:0] res = 0;
+        Index earlyList[4] = {earlyA,earlyB,earlyC,earlyD};
+        Index earlyMax[$] = earlyList.max();
+        Index earlyMin[$] = earlyList.min();
+        Index todayList[4] = {todayA,todayB,todayC,todayD};
+        Index absList[4] = {paramMgr::abs(earlyA,todayA),paramMgr::abs(earlyB,todayB),paramMgr::abs(earlyC,todayC),paramMgr::abs(earlyD,todayD)};
+        Index tmpList[$];
+        case(formula)
+            Formula_A: begin
+                res = $floor(earlyList.sum()/4);
+            end
+            Formula_B: begin
+                res = earlyMax[0] - earlyMin[0];
+            end
+            Formula_C: begin
+                res = earlyMin[0];
+            end
+            Formula_D: begin
+                tmpList = earlyList.find(x) with (x>=2047);
+                res = tmpList.size();
+            end
+            Formula_E: begin
+                foreach(earlyList[idx]) begin
+                    if(earlyList[idx] >= todayList[idx]) res++;
+                end
+            end
+            Formula_F: begin
+                absList.sort();
+                res = $floor((absList[0] + absList[1] + absList[2])/4);
+            end
+            Formula_G: begin
+                absList.sort();
+                res = $floor(absList[0]/2) + $floor(absList[1]/4) + $floor(absList[2]/4);
+            end
+            Formula_H: begin
+                res = $floor(absList.sum()/4);
+            end
+            default: begin
+                _logger.error($sformatf("Invalid Formula : %s", formula.name()));
+                return -1;
+            end
+        endcase
+        return res;
+    endfunction
+
+    static function Index abs(Index A, Index B);
+        return (A-B)>0 ? (A-B) : (B-A);
+    endfunction
+
+    // Date
+    static function Day getNbOfDays(Month month);
+        case(month)
+            1, 3, 5, 7, 8, 10, 12:
+                return 31;
+            4, 6, 9, 11:
+                return 30;
+            2:
+                return 28;
+            default: begin
+                _logger.error($sformatf("Invalid Month : %d", month));
+                return 28;
+            end
+        endcase
+    endfunction
+
+    static function logic dateIsEarlier(Date a, Date b);
         if(a.M < b.M) begin
             return 1;
         end
@@ -103,13 +158,12 @@ class paramMgr;
         end
     endfunction
 
-    local logger _logger;
+    static local logger _logger;
 endclass
 
 //======================================
 //      Report Table
 //======================================
-// TODO: Static method -> combineStringHorizontal
 class reportTable;
     function new(string name);
         this._content = '{{}};

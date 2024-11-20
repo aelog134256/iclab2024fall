@@ -57,6 +57,42 @@ class inputMgr;
         return _randMgr.action;
     endfunction
 
+    // Formula & Mode
+    function Formula_Type getFormulaType();
+        return _randMgr.formulaType;
+    endfunction
+
+    function Mode getMode();
+        return _randMgr.mode;
+    endfunction
+
+    // Index
+    function Index getIndexA();
+        return _randMgr.indexA;
+    endfunction
+
+    function Index getIndexB();
+        return _randMgr.indexB;
+    endfunction
+
+    function Index getIndexC();
+        return _randMgr.indexC;
+    endfunction
+
+    function Index getIndexD();
+        return _randMgr.indexD;
+    endfunction
+
+    // Date
+    function Month getMonth();
+        return _randMgr.month;
+    endfunction
+
+    function Day getDay();
+        return _randMgr.day;
+    endfunction
+
+    // Data_Dir
     function Data_No getDataNo();
         return _randMgr.dataNo;
     endfunction
@@ -73,22 +109,22 @@ class inputMgr;
         dataTable.newRow();
         dataTable.addCell("Action");
         dataTable.addCell($sformatf("%s", _randMgr.action.name()));
-        dataTable.newRow();
         if(actionSel == Index_Check) begin
+            dataTable.newRow();
             dataTable.addCell("Formula type");
             dataTable.addCell($sformatf("%s", _randMgr.formulaType.name()));
+            
             dataTable.newRow();
-
             dataTable.addCell("Mode");
             dataTable.addCell($sformatf("%s", _randMgr.mode.name()));
-            dataTable.newRow();
         end
 
+        dataTable.newRow();
         dataTable.addCell("Date\(M/D\)");
         dataTable.addCell($sformatf("%2d / %2d", _randMgr.month, _randMgr.day));
-        dataTable.newRow();
 
         if(actionSel == Index_Check || actionSel == Update) begin
+            dataTable.newRow();
             dataTable.addCell("Data No.");
             dataTable.addCell($sformatf("%3d", _randMgr.dataNo));
             dataTable.newRow();

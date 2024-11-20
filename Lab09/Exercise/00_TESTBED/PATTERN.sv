@@ -11,7 +11,7 @@ import usertype::*;
 //======================================
 //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 // Can be modified by user
-integer   TOTAL_PATNUM = 2;
+integer   TOTAL_PATNUM = 10;
 integer   SEED = 5487;
 parameter DEBUG = 1;
 parameter DRAM_p_r = "../00_TESTBED/DRAM/dram.dat";
@@ -196,8 +196,10 @@ end endtask
 
 task load_dat_from_dram; begin
     _stockTradeFlowMgr.getDramMgr().loadDramFromDat(DRAM_p_r);
-    if(DEBUG)
+    if(DEBUG) begin
+        _logger.info($sformatf("Dump the initial dram.dat info file"));
         _stockTradeFlowMgr.getDramMgr().dumpDramToFile(DRAM_INFO_FILE, NUM_OF_TABLE_PER_ROW_OF_DRAM_INFO_FILE);
+    end
 end endtask
 
 task reset_task; begin
@@ -281,6 +283,7 @@ task input_task; begin
         end
         Check_Valid_Date: begin
             send_valid_and_data($typename(inf.D.d_date[0]), "");
+            send_valid_and_data($typename(inf.D.d_data_no[0]), "");
         end
         default: begin
             _logger.error($sformatf("Action (%s) isn't valid...", inputAction.name()));
@@ -291,7 +294,16 @@ task input_task; begin
 end endtask
 
 task cal_task; begin
+    if(DEBUG) begin
+        _logger.info($sformatf("Dump the dram.dat info file before operation : %s", {DRAM_INFO_FILE, ".before"}));
+        _stockTradeFlowMgr.getDramMgr().dumpDramToFile({DRAM_INFO_FILE, ".before"}, NUM_OF_TABLE_PER_ROW_OF_DRAM_INFO_FILE);
+    end
+    _stockTradeFlowMgr.getOutputMgr().clear();
     _stockTradeFlowMgr.run();
+    if(DEBUG) begin
+        _logger.info($sformatf("Dump the dram.dat info file after operation : %s", {DRAM_INFO_FILE, ".after"}));
+        _stockTradeFlowMgr.getDramMgr().dumpDramToFile({DRAM_INFO_FILE, ".after"}, NUM_OF_TABLE_PER_ROW_OF_DRAM_INFO_FILE);
+    end
 end endtask
 
 task wait_task; begin
@@ -303,14 +315,13 @@ task wait_task; begin
 end endtask
 
 task check_task; begin
-    _stockTradeFlowMgr.getOutputMgr().clear();
-
     // _stockTradeFlowMgr.getInputMgr().getRandMgr().display();
 
     while(inf.out_valid === 1) begin
-        _stockTradeFlowMgr.getOutputMgr().setGoldOutput(inf.warn_msg, inf.complete);
+        _stockTradeFlowMgr.getOutputMgr().setCurdOutput(inf.warn_msg, inf.complete);
         if(!_stockTradeFlowMgr.getOutputMgr().isCorrect()) begin
             _stockTradeFlowMgr.display();
+            _logger.error("Output is not correct...\n");
         end
         @(negedge clk);
     end
