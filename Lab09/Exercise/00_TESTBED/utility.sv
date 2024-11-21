@@ -101,7 +101,7 @@ class paramMgr;
             end
             Formula_F: begin
                 absList.sort();
-                res = $floor(int'(absList[0] + absList[1] + absList[2])/4);
+                res = $floor(int'(absList[0] + absList[1] + absList[2])/3);
             end
             Formula_G: begin
                 absList.sort();
