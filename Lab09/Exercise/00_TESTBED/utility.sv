@@ -73,7 +73,7 @@ class paramMgr;
         Index earlyA, Index earlyB, Index earlyC, Index earlyD, 
         Index todayA, Index todayB, Index todayC, Index todayD
     );
-        logic signed[$bits(Index)+1:0] res = 0;
+        logic signed[$bits(Index)+2:0] res = 0;
         Index earlyList[4] = {earlyA,earlyB,earlyC,earlyD};
         Index earlyMax[$] = earlyList.max();
         Index earlyMin[$] = earlyList.min();
@@ -82,7 +82,7 @@ class paramMgr;
         Index tmpList[$];
         case(formula)
             Formula_A: begin
-                res = $floor(earlyList.sum()/4);
+                res = $floor((earlyList.sum() with (int'(item)))/4);
             end
             Formula_B: begin
                 res = earlyMax[0] - earlyMin[0];
@@ -101,14 +101,14 @@ class paramMgr;
             end
             Formula_F: begin
                 absList.sort();
-                res = $floor((absList[0] + absList[1] + absList[2])/4);
+                res = $floor(int'(absList[0] + absList[1] + absList[2])/4);
             end
             Formula_G: begin
                 absList.sort();
-                res = $floor(absList[0]/2) + $floor(absList[1]/4) + $floor(absList[2]/4);
+                res = int'($floor(absList[0]/2) + $floor(absList[1]/4) + $floor(absList[2]/4));
             end
             Formula_H: begin
-                res = $floor(absList.sum()/4);
+                res = $floor((absList.sum() with (int'(item)))/4);
             end
             default: begin
                 _logger.error($sformatf("Invalid Formula : %s", formula.name()));
