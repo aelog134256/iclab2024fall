@@ -119,7 +119,7 @@ class paramMgr;
     endfunction
 
     static function Index abs(Index A, Index B);
-        return (A-B)>0 ? (A-B) : (B-A);
+        return (A>B) ? (A-B) : (B-A);
     endfunction
 
     // Date
