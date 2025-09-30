@@ -8,3 +8,5 @@
 **Name:** Allen Kuan
 **Github:** [Github Profile](https://github.com/c20kyo1827/)
 **Email:** c20kyo1827@gmail.com
+
+**For any questions, please contact c20kyo1827@gmail.com first before reaching out to others.**
